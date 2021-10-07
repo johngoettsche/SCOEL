@@ -1,0 +1,247 @@
+#####################################################################
+#
+# Unicon Profiler v0.6
+# Author: Leah Wegner
+# Maintainer: Clinton Jeffery
+# May 23st, 2011
+#
+# Notes:
+#  The granularity of the timing mechanism on Linux is 10 milliseconds.
+#  This causes inaccurate timing results for procedures that typically run
+#  for less than 10 milliseconds. For such procedures, it
+#  might be more beneficial to look only at procedure counts instead
+#  of run-time.
+#
+####################################################################
+
+
+link evinit
+link evnames
+link evsyms
+link options
+link printf
+$include "evdefs.icn"
+
+global Proc_stack
+global Call_time_stack
+global keys
+global keys2
+record lkey(keyval, timeval)
+
+procedure main(args)
+   #Declarations
+   local opts
+   local output
+   local symmap
+   local val
+
+   local Proc_calls := table(0)
+   local Proc_fails := table(0)
+   local Proc_returns := table(0)
+   local Proc_suspends := table(0)
+   local Proc_resumes := table(0)
+   local Proc_call_list := table(0)
+
+   local Proc_time := table(0)
+   local Proc_alone_time := table(0)
+   local proc_start_time := 0
+   local proc_end_time := 0
+   local mask := ProcMask
+   local lastline, lines
+   local line_time := table(0), line_count := table(0)
+   local longest_filename_length := 0
+   
+   if (*args=0) | (args[1] == ("--help"|"-help")) then
+       stop("usage: uprof [-l] uniconprogram args\n",
+	    "  (the -l option enables line-level time sampling)")
+
+   if args[1] == "-o" then { pop(args); output := pop(args) }
+   else if match("-o", args[1]) then output := pop(args)[3:0]
+   else output := &errout
+
+   if args[1] == "-l" then { pop(args); lines := 1; mask ++:= E_Line }
+
+   #initializations
+   symmap := evsyms()
+   Proc_stack := list()
+   Call_time_stack := list()
+
+   EvInit(args) | stop("*** cannot open program to monitor")
+
+   while EvGet(mask) do {
+      val := &eventvalue
+
+   #Build the tables
+      case &eventcode of {
+	 E_Line: {
+	     linetime := keyword("time", Monitored)
+	     linefile := keyword("file", Monitored)
+	     longest_filename_length <:= *linefile
+	     line_count[linefile||":"||&eventvalue] +:= 1
+	     if delta := (0 < linetime-\last_linetime) then {
+		 line_time[linefile||":"||&eventvalue] +:= delta
+	     }
+	     last_linetime := linetime
+	 }
+
+      #CALL
+         E_Pcall: {
+            push(Proc_stack, val)
+            push(Call_time_stack, (keyword("&time", Monitored)))
+            Proc_call_list[val] +:= 1
+	    Proc_calls[val] +:= 1
+         }
+
+      #FAIL
+         E_Pfail: {
+            Proc_fails[val] +:= 1
+            Current_proc := pop(Proc_stack)
+            proc_start_time := pop(Call_time_stack)
+            Proc_call_list[val] -:= 1
+
+            if Proc_call_list[val] = 0 then{
+               proc_end_time := keyword("&time", Monitored)
+               Proc_time[val] +:=  (proc_end_time - proc_start_time)
+
+               if image(Current_proc) ~== "procedure main" then {
+                  Proc_alone_time[(Proc_stack[1])] -:=
+		     (proc_end_time - proc_start_time)
+               }
+            }
+         }
+
+      #RETURN
+      E_Pret: {
+         Current_proc := pop(Proc_stack)
+         Proc_returns[Current_proc] +:= 1
+         proc_start_time := pop(Call_time_stack)
+         Proc_call_list[Current_proc] -:= 1
+
+         if Proc_call_list[Current_proc] = 0 then {
+            proc_end_time := keyword("&time", Monitored)
+            Proc_time[Current_proc] +:=  (proc_end_time - proc_start_time)
+
+            if (image(Current_proc) ~== "procedure main") then {
+               Proc_alone_time[(Proc_stack[1])] -:=
+		   (proc_end_time - proc_start_time)
+            }
+         }
+      }
+
+      #SUSPEND
+      E_Psusp: {
+         Current_proc := pop(Proc_stack)
+         Proc_suspends[Current_proc] +:= 1
+         proc_start_time := pop(Call_time_stack)
+         Proc_call_list[Current_proc] -:= 1
+
+         if Proc_call_list[val] = 0 then {
+            proc_end_time := keyword("&time", Monitored)
+            Proc_time[Current_proc] +:=  (proc_end_time - proc_start_time)
+
+            if (image(Current_proc) ~== "procedure main") then {
+               Proc_alone_time[(Proc_stack[1])] -:=
+		  (proc_end_time - proc_start_time)
+            }
+         }
+      }
+
+      #RESUME
+      E_Presum: {
+         push(Proc_stack, val)
+         Proc_resumes[val] +:= 1
+         Proc_call_list[val] +:= 1
+
+         push(Call_time_stack, (keyword("&time", Monitored)))
+      }
+   }
+   }
+
+if *Proc_stack > 0 then {
+    write(output, "Execution left ", *Proc_stack, " frames.")
+    while *Proc_stack > 0 do {
+	Current_proc := pop(Proc_stack)
+	proc_start_time := pop(Call_time_stack)
+	Proc_fails[Current_proc] +:= 1
+	Proc_call_list[Current_proc] -:= 1
+	if Proc_call_list[Current_proc] = 0 then {
+	    proc_end_time := keyword("&time", Monitored)
+	    Proc_time[Current_proc] +:= proc_end_time - proc_start_time
+	    if image(Current_proc) ~== "procedure main" then {
+		Proc_alone_time[Proc_stack[1]] -:=
+		    proc_end_time - proc_start_time
+	    }
+	}
+    }
+}
+
+   #creates the proc alone table, and sets top to main
+   every y := key(Proc_time) do {
+      Proc_alone_time[y] +:= Proc_time[y]
+      if image(y) == "procedure main" then {
+	  top := y
+      }
+   }
+
+   #sort the output
+   keys := list()
+   every y := key(Proc_time) do {
+       if not member(Proc_time,top) then write("not a member...")
+      x := lkey(y, divimage(Proc_alone_time[y]*100,Proc_time[top]))
+      push(keys, x)
+      }
+   keys := reverse(sortf(keys, 2))
+
+   mxname := 12
+   every mxname <:= *image((!keys).keyval)[10:0]
+
+   #output
+   write(output)
+   write(output, left("PROCEDURE",mxname-2), left("%TIME", 7), left("TOTAL", 8),
+	 left("TIME ALONE", 12), left("CALLS", 8), left("RETS", 6),
+	 left("FAILS", 6), left("SUSP", 5), left("RESUM",6), "TIME/CALL")
+
+   every y := (!keys).keyval do {
+      writes(output,
+	     left((image(y))[10:0], mxname),
+	     left(divimage(Proc_alone_time[y]*100,Proc_time[top]), 6),
+	     left(Proc_time[y], 8),
+	     left(Proc_alone_time[y], 12),
+	     left(Proc_calls[y], 8), left(Proc_returns[y], 6),
+	     left(Proc_fails[y], 6), left(Proc_suspends[y], 6),
+	     left(Proc_resumes[y],6))
+      write(output,
+	    printf("%.3r",
+		   divimage(Proc_alone_time[y],
+		       real(Proc_fails[y]+Proc_returns[y]+Proc_suspends[y]))))
+   }
+
+   if \lines then {
+       write(output)
+       write(output,
+	     printf("%"||(longest_filename_length+1)||"s %8s %8s %8s %8s",
+		    "FILE", "LINE", "TIME", "LINE ", "TIME/LN"))
+       write(output,
+	     printf("%"||(longest_filename_length+1)||"s %8s %8s %8s %8s",
+		    "    ", "    ", "(ms)", "COUNT", "  (ms) "))
+       L := reverse(sort(line_time,2))
+       every le := !L do {
+	  write(output,
+		printf("%"||(longest_filename_length+1)||"s %8d %8d %8d   %.3r",
+		       le[1][1:find(":",le[1])], le[1][find(":",le[1])+1:0],
+		       le[2], line_count[le[1]],
+		       divimage(le[2], real(line_count[le[1]]))))
+       }
+   }
+
+
+end
+
+#
+# return an image of a division
+#
+procedure divimage(num,denom)
+    if num = 0 then return 0
+    else if denom = 0 then return 0
+    else return num/denom
+end

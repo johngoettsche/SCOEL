@@ -1,0 +1,18 @@
+# Bclass generation #
+record B__class(__self, local$0)
+
+record B__methods()
+
+global B__constructor
+
+procedure __B(, local$0)
+local self, clone
+initial {
+if /B__constructor then Binitialize()
+}
+self := B__class(&null, B__constructor,, local$0)
+self.__self := self
+return self
+end
+
+   

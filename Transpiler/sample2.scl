@@ -1,0 +1,7 @@
+class B : sample::A
+	private
+		foo
+		
+constructor()
+	foo := sample::A.bar
+end

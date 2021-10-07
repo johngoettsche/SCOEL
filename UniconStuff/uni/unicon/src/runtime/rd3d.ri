@@ -1,0 +1,429 @@
+/*
+ *  File: rd3d.ri
+ *     3D facilities Direct3d support routines
+ *     (Under construction.)
+ */
+
+/*
+ * Unicon runtime system convention:
+ * Strange (small negative) return values indicate success, failure, or error
+ * for those functions where a nonpositive outcome is possible.
+#define Failed		-5
+#define Defaulted	-6
+#define Succeeded	-7
+#define Error		-8
+ */
+
+
+/*
+ * Initialize the 3D subsystem for rendering, including allocating any
+ * resources necessary to use 3D on w's canvas.
+ */
+void init_3dcanvas(wbp  w)
+{
+}
+
+/*
+ * Free/release 3D system resources.
+ */
+int release_3d_resources(wbp w)
+{
+   return Failed;
+}
+
+/*
+ * Draw a cube on the current 3D window centered at (x,y,z).
+ * Flag gen==1 means: use the currently set texture. gen==0 uses materials.
+ */
+void cube(double length, double x, double y, double z, int gen)
+{
+}
+
+/*
+ * Draw a cylinder.  Default points "up". gen==1 means use texture.
+ * slices and rings govern how smooth/rounded the approximation should be.
+ */
+void cylinder(double radius1, double radius2, double height,
+              double x,  double y, double z, int slices, int rings, int gen)
+{
+}
+
+/*
+ * traverse the given list and set material properties.
+ * RGBA are given in X11-style 0-65535 range
+ */
+int determinematerial(temp, r, g, b, a) 
+char *temp;
+C_integer r, g, b, a;
+{
+   return Failed;
+}
+
+/*
+ * draw a disk. radius1!=radius2 specifies an ellipse.
+ * angle1 and angle2 units are degrees.
+ * angle2 < 360 degrees specifies a partial disk.
+ * slices and rings govern how smooth/rounded the approximation should be.
+ * gen==1 means use texture.
+ */
+void disk(double radius1, double radius2, double angle1, double angle2,
+          double x, double y, double z, int slices, int rings, int gen)
+{
+}
+
+/*
+ * returns the current value of the specified light # in the result buf
+ */
+int getlight(int light, char* buf)
+{
+}
+
+/*
+ * returns the current material properties
+ */
+int getmaterials(char* buf)
+{
+   return Failed;
+}
+
+/*
+ * draw a sphere.
+ * slices and rings govern how smooth/rounded the approximation should be.
+ * gen==1 means use texture.
+ */
+void sphere(double radius, double x, double y, double z,
+	    int slices, int rings, int gen)
+{
+}
+
+/*
+ * draw a torus.
+ * slices and rings govern how smooth/rounded the approximation should be.
+ * gen==1 means use texture.
+ */
+void torus(double radius1, double radius2, double x,double y, double z,
+	   int slices, int rings, int gen)
+{
+}
+
+/* other helper functions */
+  	
+/*
+ * pop a matrix from either the projection or the modelview matrix stack
+ */
+int popmatrix()
+{
+}
+
+/*
+ * push a matrix onto the current stack -- that is
+ * either the modelview of projection matrix stack
+ */
+int pushmatrix()
+{
+}
+
+
+/*
+ * Functions that implement redrawing of windows.
+ */
+
+/*
+ * Redraws a 3D window by traversing its display list.
+ */
+int redraw3D(wbp w)
+{
+}
+
+/*
+ * Set the top of the current matrix stack to use the identity matrix.
+ */
+int identitymatrix()
+{
+   return Failed;
+}
+
+/*
+ * The matrix mode controls whether operations (e.g. push and pop)
+ * affect the "modelview" or the "projection" stack.
+ */
+int setmatrixmode(char *s)
+{
+   if (!strcmp("modelview", s)) { /* ... */ }
+   else if (!strcmp("projection", s)) { /* ... */ }
+   else return Failed;
+   return Failed;
+}
+
+/*
+ * Lookup a texture given its name (filename), and reuse it insted of reloading
+ * it from disk. Otherwise create a new texture.
+ * NOTE: The lookup is a linear search! not good enough for a program
+ * with large number of textures. We should improve this.
+ * returns:
+ *         The index of the texture if found
+ *         Succeeded, if a new texture is created
+ *         Failed, if a new texture could not be created
+ */
+
+int lookup_texture_byname(wbp w, char *name, int len, int ttype, int curtex)
+{
+   return Failed;
+}
+
+/*
+ * Set the current texture from the contents of a 2D window.
+ */
+int texwindow2D(wbp w, wbp w2d)
+{
+   return Failed;
+}
+
+/*
+ * Set the current texture from the contents of a 3D window.
+ */
+int texwindow3D(wbp w1, wbp w2)
+{
+   return Failed;
+}
+
+/*
+ * Allocate space for textures.
+ */
+int make_enough_texture_space(wcp wc)
+{
+   return Failed;
+}
+
+/*
+ * Apply a rotate transformation to the top of the current matrix stack.
+ */
+int rotate(wbp w, dptr argv, int i, dptr f)
+{
+   return Failed;
+}
+
+/*
+ * Apply a scale transformation to the top of the current matrix stack.
+ */
+int scale(wbp w, dptr argv, int i, dptr f)
+{
+   return Failed;
+}
+
+/*
+ * Apply a translate transformation to the top of the current matrix stack.
+ */
+int translate(wbp w, dptr argv, int i, dptr f)
+{
+   return Failed;
+}
+
+/*
+ * Draw a 2D line directly on some texture memory. Probably can be
+ * made portable or adapted from ropengl.ri
+ */
+int TexDrawLine(wbp w, int texhandle, int x1, int y1, int x2, int y2)
+{
+   return Failed;
+}
+
+/*
+ * Draw a 2D rectangle directly on some texture memory. Probably can be
+ * made portable or adapted from ropengl.ri
+ */
+int TexDrawRect(wbp w, int texhandle, int x, int y, int width, int height)
+{
+   return Failed;
+}
+
+/*
+ * Draw a 2D filled rectangle directly on some texture memory. Probably can be
+ * made portable or adapted from ropengl.ri
+ */
+int TexFillRect(wbp w, int texhandle, int x, int y, int width, int height,
+	     int isfg)
+{
+   return Failed;
+}
+
+/*
+ * Draw a 2D point directly on some texture memory. Probably can be
+ * made portable or adapted from ropengl.ri
+ */
+int TexDrawPoint(wbp w, int texhandle, int x, int y)
+{
+   return Failed;
+}
+
+/*
+ * Read an image into a texture.
+ */
+int TexReadImage(wbp w, int texhandle, int x, int y,struct imgdata *imd)
+{
+   return Failed;
+}
+
+/*
+ * Copy an area (from a window) directly into some texture memory.
+ */
+int TexCopyArea(wbp w, wbp w2, int texhandle, int x, int y, int width, 
+		      int height, int xt, int yt, int width2, int height2)
+{
+   return Failed;
+}
+
+/*
+ * Draw text string s at location (x,y,z) using the current font.
+ */
+int drawstrng3d(wbp w, double x, double y, double z, char *s)
+{
+   return Failed;
+}
+
+/*
+ * Set the current material surface with which polgyons will be rendered
+ * when in non-textured or blended mode.  Ignored in regular texture mode.
+ */
+int setmaterials(wbp w, char* s)
+{
+   return Failed;
+}
+
+/*
+ * Call the 3D system to turn the texture mode on or off.
+ * The texture mode has been set in w->context->texmode.
+ */
+void apply_texmodechange(wbp w)
+{ return; }
+
+/*
+ * Set 3D selection mode on or off.  3D section mode determines whether input
+ * mouse clicks are mapped onto the object(s) in the scene that were clicked,
+ * denoted by identifiers set using WSection().
+ */
+int setselectionmode(wbp w, char* s)
+{
+   return Failed;
+}
+
+/*
+ * Set the line width for 3D lines.
+ */
+int setlinewidth3D(wbp w, LONG linewid)
+{
+   return Failed;
+}
+
+/*
+ * Set vertex interpretation for Polygon operations to one of:
+ * "points", "lines", "linestrip", "lineloop", "triangles", "trianglefan",
+ * "trianglestrip", "quads", "quadstrip", "polygon"
+ */
+int setmeshmode(wbp w, char* s)
+{
+   return Failed;
+}
+
+/*
+ * Set the texture coordinates to be used for supplied vertices from
+ * alternating u,v pairs within a comma-separated string of numbers s.
+ */
+int settexcoords(wbp w, char* s)
+{
+   return Failed;
+}
+
+/*
+ * Allocate resources needed for a 3D graphics context.
+ * ???
+ */
+int create3Dcontext(wbp w)
+{
+   return Failed;
+}
+
+/*
+ * Make window w's 3D display the one currently used by 3D subsystem calls.
+ * At least on OpenGL this is needed, since OpenGL calls do not include a
+ * parameter for what window they operate on.
+ */
+void makecurrent(wbp w)
+{
+}
+
+/*
+ * Initialize the viewport to a given width and height.
+ * ???
+ */
+void initializeviewport(int w, int h)
+{
+}
+
+/*
+ * Free 3D resources associated with w's context.
+ * ???
+ */
+int destroycontext(wbp w)
+{
+   return Failed;
+}
+
+/*
+ * Copy the texture resources allocated in wc2 into newly created context wc1.
+ * ???
+ */
+int copytextures(wcp wc1, wcp wc2)
+{
+   return Failed;
+}
+
+/*
+ * Draw Polygon using the current mesh mode, texture mode, etc.
+ * type is U3D_POLYGON, U3D_LINE_STRIP, U3D_POINTS, U3D_LINES, U3D_LINE_LOOP...
+ */
+int drawpoly(wbp w, double* v, int num, int type, int dim)
+{
+}
+
+/*
+ * OpenGL at least, calls a function after output to make it visible on-screen.
+ */
+void swapbuffers(wbp w, int flush)
+{
+}
+
+/*
+ * Erase/Set the 3D window to background color given by r,g,b.
+ * RGB units are Unicon's (via X-Windows') 16-bit int rgb's.
+ * Does this need a window argument?
+ */
+void erasetocolor(int r,int g,int b)
+{
+}
+
+/*
+ * Apply/use a texture given by integer texturehandle as the current texture
+ * used on subsequent 3D primitives.  Texturehandles are integer indices
+ * used internal to our 3D runtime system code to identify previous textures;
+ * they must be created/produced by some other call in here, which one?
+ */
+void bindtexture(wbp w, int texturehandle)
+{
+}
+
+/*
+ * Enable/disable automatic texture coordinates for standard 3D primitives.
+ */
+void applyAutomaticTextureCoords(int enable)
+{
+}
+
+/*
+ * Multiply the 4x4 matrix given in array-of-16-doubles a onto the top
+ * of the current matrix stack.
+ * ???
+ */
+void applymatrix(wbp w, double a[])
+{
+}

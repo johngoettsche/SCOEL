@@ -1,0 +1,37 @@
+
+class DAO()
+	local
+		file,
+		filename
+	
+	method closeFile()
+		if \file then close(file)
+	end
+	
+	method readChars(n)
+		return reads(file, n)
+	end
+	
+	method readln()
+		return read(file)
+	end
+	
+	method writeItm(txt)
+		writes(file, txt)
+	end
+	
+	method writeln(txt)
+		write(file, txt)
+	end
+	 
+initially(fn, typ, postfix)
+	local 
+		length
+		
+	filename := fn
+	length := *postfix
+	write(postfix)
+	write(filename[-length:0])
+	if filename[-length:0] != postfix then filename ||:= postfix
+	file := open(filename, typ) | stop(&errortext, filename)
+end

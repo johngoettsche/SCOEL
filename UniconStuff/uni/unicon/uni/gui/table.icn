@@ -1,0 +1,428 @@
+#
+# $Id: table.icn,v 1.13 2006-07-04 02:46:35 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+class TableContent : SelectableScrollArea()
+   method get_line_height()
+      return WAttrib(self.cwin, "fheight")
+   end
+
+   method get_subject_width()
+      return parent.get_total_column_width()
+   end
+
+   method refresh(redraw)
+      # Need to resize buttons because of the horizontal scroll bar moving.
+      parent.table_header.resize()
+      parent.table_header.invalidate()
+      self.ScrollArea.refresh(redraw)
+   end
+
+   #
+   # Draw an individual column for one row's data.  This could
+   # be over-ridden to give a custom table with data 
+   # other than strings.
+   #
+   # @param row the row number to draw
+   # @param col the column number to draw
+   # @param cx the x position of the cell
+   # @param cy the y position of the cell
+   # @param cw the width of the cell
+   # @param ch the height of the cell
+   #
+   method draw_cell(row, col, cx, cy, cw, ch)
+      local s
+      s := get_contents()[row][col] | fail
+      case get_column(col).internal_alignment of {
+         "r" :          right_string(self.cbwin, cx + cw, cy, s)
+         "c" :          center_string(self.cbwin, cx + cw / 2, cy, s)
+         "l" :          left_string(self.cbwin, cx, cy, s)
+      }
+   end
+
+   method get_column(n)
+      return parent.table_header.children[n]
+   end
+
+   method draw_line(xp, yp, i, selection_cw, cursor_cw, highlight_cw)
+      local j, l, cols, x1, w1, clip_x1, clip_x2, col
+      l := self.contents[i]
+      cols := parent.table_header.children
+      every j := 1 to *cols do {
+         col := cols[j]
+         x1 := col.x + DEFAULT_TEXT_X_SURROUND
+         w1 := col.w - 2 * DEFAULT_TEXT_X_SURROUND
+         clip_x1 := x1
+         clip_x1 <:= self.view.x
+         clip_x2 := x1 + w1
+         clip_x2 >:= self.view.x + self.view.w
+         Clip(self.cbwin, clip_x1, self.view.y, clip_x2 - clip_x1, self.view.h)
+         draw_cell(i, j, x1, yp, w1, self.line_height)
+         Clip(self.cbwin)
+      }
+      if \selection_cw then
+         FillRectangle(selection_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+
+      if \cursor_cw then 
+         Rectangle(cursor_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+
+      if \highlight_cw then
+         Rectangle(highlight_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+   end
+
+   initially
+      self.SelectableScrollArea.initially()
+end
+
+class TableHeader : Component(
+   button_x,
+   button_y,
+   button_w,
+   button_h   
+   )
+
+   method get_x_reference()
+      return parent.table_content.get_left_pos()
+   end
+
+   method resize()
+      local i, b
+
+      self.Component.compute_absolutes()
+      self.button_x := self.x + DEFAULT_SP_X_PADDING
+      self.button_w := self.w - 2 * DEFAULT_SP_X_PADDING
+      self.button_y := self.y + BORDER_WIDTH
+      self.button_h := self.h - 2 * BORDER_WIDTH
+
+      i := 0
+      every b := !self.children do {
+         b.set_pos(i, BORDER_WIDTH)
+         b.set_size(b.column_width, self.button_h)
+         b.resize()
+         i +:= b.w
+      }
+   end
+
+   method display(buffer_flag)
+      EraseRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      DrawSunkenRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      every (!self.children).display(1)
+      if /buffer_flag then
+         CopyArea(self.cbwin, self.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+   end
+end
+
+#
+# This class displays a table, the columns of which are set up
+# using TableColumns.
+#
+class Table : Component(
+   table_header,
+   table_content,
+   head_h
+   )
+
+   #
+   # Set the height of the buttons at the top in pixels.  If not
+   # invoked, a sensible default will be used.
+   # @param x   The height
+   #
+   method set_header_height(x)
+      return self.head_h := x
+   end
+
+   #
+   # Return the nth {TableColumn}.
+   #
+   method get_column(n)
+      return table_header.children[n]
+   end
+
+   method get_contents()
+      return self.table_content.get_contents()
+   end
+
+   method set_checked(l)
+      return self.table_content.set_checked(l)
+   end
+
+   method get_checked()
+      return self.table_content.get_checked()
+   end
+
+   #
+   # Move to the given position.  Either parameter may be omitted.
+   # @param line   The row to move to
+   # @param horiz  The left offset to move to
+   #
+   method goto_pos(line, horiz)
+      return self.table_content.goto_pos(line, horiz)
+   end
+
+   #
+   #
+   # Present number of lines on screen
+   #
+   method get_curr_lines()
+      return self.table_content.get_curr_lines()
+   end
+
+   #
+   # Set the contents of the table.  The parameter should be a
+   # two dimensional list.  Each element of the list should
+   # correspond to one row of the table.
+   # @param x   The contents
+   #
+   method set_contents(x)
+      return self.table_content.set_contents(x)
+   end
+
+   #
+   # Call this method if the contents list, previously
+   # set with {set_contents()}, has changed.
+   #
+   method contents_changed()
+      return self.table_content.contents_changed()
+   end
+
+   method clear_selections()
+      return self.table_content.clear_selections()
+   end
+
+   #
+   # Return a list of rows selected
+   # @return A list of rows currently selected
+   #
+   method get_selections()
+      return self.table_content.get_selections()
+   end
+
+   #
+   # Set the current selections to the list l, which is a list of
+   # row numbers.
+   # @param l   The list of item numbers.
+   #
+   method set_selections(l)
+      return self.table_content.set_selections(l)
+   end
+
+   #
+   # Set the cursor
+   #
+   # @p
+   method set_cursor(row)
+      self.table_content.set_cursor(row)
+   end
+
+   #
+   # Return item currently under the clicked cursor
+   #
+   # @p
+   method get_cursor()
+      return self.table_content.get_cursor()
+   end
+
+   #
+   # Return row currently under the clicked cursor
+   #
+   # @p
+   method row_get_cursor()
+      return self.table_content.object_get_cursor()
+   end
+
+   #
+   # Return row number previously under the clicked cursor
+   #
+   # @p
+   method get_prev_down()
+      return self.table_content.get_prev_down()
+   end
+
+   #
+   # Return row previously under the clicked cursor
+   #
+   # @p
+   method row_get_prev_down()
+      return self.table_content.object_get_prev_down()
+   end
+
+   #
+   # Get the number of the first visible line
+   #
+   method get_first_line()
+      return self.table_content.get_first_line()
+   end
+
+   #
+   # The index of the last line in the area, or zero if there are no
+   # lines.
+   #
+   method get_last_line()
+      return self.table_content.get_last_line()
+   end
+
+   #
+   # Add the given TableColumn to the Table.
+   # @param c  The column to add.
+   #
+   method add_column(c)
+      table_header.add(c)
+   end
+
+   #
+   # Get the columns of the table
+   #
+   method get_columns()
+      return table_header.get_children()
+   end
+
+   #
+   # Configure the table so that one row of the table may be highlighted.
+   #
+   method set_select_one()
+      self.table_content.set_select_one()
+   end
+
+   #
+   # Configure the table so that several rows of the table may be highlighted.
+   #
+   method set_select_many()
+      self.table_content.set_select_many()
+   end
+
+   #
+   # Configure the table so that no lines may be highlighted (this
+   # is the default).
+   #
+   method set_select_none()
+      self.table_content.set_select_none()
+   end
+
+   #
+   # Get the total width of all columns
+   #
+   method get_total_column_width()
+      local sw
+      sw := 0
+      every sw +:= (!self.table_header.children).column_width
+      return sw
+   end
+
+   #
+   # Compute the widths of any columns whose width is unset.
+   # @p
+   method auto_size_columns()
+      local col, l, sw, dw
+
+      l := []
+      sw := 0
+      every col := !self.table_header.children do
+         (sw +:= \col.column_width) | put(l, col)
+      
+      if *l = 0 then
+         return
+
+      # The width to give the auto size columns.
+      dw := (self.w - 2 * DEFAULT_SP_X_PADDING - SB_SIZE - sw) / *l
+      dw <:= 10
+
+      every (!l).column_width := dw
+   end
+
+   method resize()
+      self.Component.compute_absolutes()
+
+      auto_size_columns()
+
+      /self.head_h := WAttrib(self.cwin, "fheight") +  2 * DEFAULT_TEXT_Y_SURROUND + 2 * BORDER_WIDTH
+
+      self.table_content.set_pos(0, self.head_h)
+      self.table_content.set_size(self.w, self.h - self.head_h)
+      self.table_content.resize()
+
+      self.table_header.set_pos(0, 0)
+      self.table_header.set_size(self.w, self.head_h)
+      self.table_header.resize()
+   end
+
+   method display(buffer_flag)
+      EraseRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      DrawSunkenRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      self.table_content.display(1)
+      self.table_header.display(1)
+      self.do_shading(self.cbwin)
+      if /buffer_flag then
+         CopyArea(self.cbwin, self.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+   end
+
+   method on_table_content(ev)
+      # Fire the event with self as source.
+      fire(ev.get_type(), ev)
+   end
+
+   #
+   # Return the component used to display the table contents, which is a
+   # subclass of SelectableScrollArea.
+   #
+   method get_table_content()
+      return self.table_content
+   end
+
+   method set_one(attr, val)
+      case attr of {
+         "select_one" : set_select_one()
+         "select_many" : set_select_many()
+         "select_none" : set_select_none()
+         "header_height" : set_header_height(int_val(attr, val))
+         default: self.Component.set_one(attr, val)
+      }
+   end
+
+   #
+   # This method can be used to change the TableContent object, which
+   # makes up the main area of the component.  To use it, extend TableContent
+   # and insert the customized object with this method.
+   #
+   method set_table_content(tc)
+      self.remove(\self.table_content)
+      self.table_content := tc
+      every self.table_content.connect(self, "on_table_content",
+                                       CURSOR_MOVED_EVENT | SELECTION_CHANGED_EVENT)
+      self.add(table_content)
+   end
+
+   #
+   # This method can be used to change the TableHeader object, which
+   # makes up the header of the table.  To use it, extend TableHeader
+   # and insert the customized object with this method.
+   #
+   method set_table_header(th)
+      self.remove(\self.table_header)
+      self.table_header := th
+      self.add(table_header)
+   end
+
+   #
+   # Send accelerator focus to the table_content.
+   #
+   method find_accel(e)
+      if self.Component.find_accel(e) then
+         return table_content
+   end
+
+   initially(a[])
+      self.Component.initially()
+      # Set default content and header components.
+      set_table_content(TableContent())
+      set_table_header(TableHeader())
+      set_fields(a)
+end

@@ -1,0 +1,116 @@
+package SAL
+
+record Scan_Result(start, finish)
+
+#built-in functions which will be executed when string methods and 
+#pattern matching occurs
+procedure __scan_move(subject, pos, c)
+	if (pos + c) < *subject then {
+		return Scan_Result(pos, pos + c)
+	}
+	return &fail #signaling that the scan or match was not successful
+end
+
+procedure __next_previous(subject, pos, c)
+	return Scan_Result(pos, pos + c)
+end
+
+#proposed class structure
+#everythind the programmer makes is going to inherit the object class
+#There will be a set of objects that inherit one another to divide up their uses and purposes
+#classes that perform similar tasks will inherit similar classes.
+#This object tree will be divided in a similar manner as the Java, but taylored for this 
+#programming language
+
+#The classes in this small sample are written in Unicon.
+class Object(_o_name)
+	method toString()
+		return _o_name
+	end
+initially
+	_o_name := "Object"
+end
+
+class Data_Types : Object(value)
+	method getValue()
+		return value
+	end
+	
+initially(v)
+	_o_name := "Data_Types"
+	value := v
+end
+
+#At this point I am considering Strings and other Collections as generators.
+#The subject is the holder of the data
+#The pos being the location of the iterator of the String or Collection.
+#One problem that comes up is how to deal with trees.
+class Generator : Object(subject, pos)
+	#returns the next character and moves the cursor 
+	#position up one space
+	method nxt()
+		result := __next_previous(subject, pos, 1)
+		pos := result.finish
+		return subject[result.start : result.finish]
+	end
+	
+	#returns the previous character and moves the cursor 
+	#position back one space
+	method prev()
+		result := __next_previous(subject, pos, -1)
+		pos := result.finish
+		return subject[result.start : result.finish]
+	end
+	
+	#sets the cursor location to 1
+	method reset()
+		pos := 1
+	end
+	
+initially()
+	_o_name := "Generator"
+end
+
+#The string class will have a set of string analysis methods and a pattern match method
+class String : Generator ()
+	#moves the cursor position up i spaces
+	method move(i)
+		if result := __scan_move(subject, pos, i) then {
+			pos := result.finish
+			return ""
+		}
+		return &fail
+	end
+	
+	#moves the cursor position up i spaces and returns
+	#the characters passed over.
+	method scan(i)
+		if result := __scan_move(subject, pos, i) then {
+			pos := result.finish
+			return subject[result.start:result.finish]
+		}
+		return &fail
+	end
+	
+	method span(cs_str)
+	
+	end
+	
+	#performs a pattern match on the subject.
+	#pattern elements will be elements that call the built-in functions and structures similar to 
+	#to SNOBOL4 in functionality and matching the string scanning function names.
+	method match(pat)
+	
+	end
+		
+initially(s)
+	_o_name := "String"
+	subject := s
+	pos := 1
+end
+
+class Collection : Generator ()
+
+initially(l)
+
+end

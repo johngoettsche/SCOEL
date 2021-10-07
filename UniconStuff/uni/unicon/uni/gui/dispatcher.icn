@@ -1,0 +1,245 @@
+#
+# $Id: dispatcher.icn,v 1.8 2006-07-09 23:43:07 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+import lang
+
+$include "guih.icn"
+
+#
+#
+# This class handles Icon events, dispatching them to
+# the appropriate dialog.  It also controls any active Tickers,
+# activating them between events as and when appropriate.
+#
+class Dispatcher : Object(
+   dialogs,
+   tickers, 
+   idle_sleep,
+   idle_sleep_min,
+   idle_sleep_max
+   )
+
+   #
+   #
+   # The single instance of the Dispatcher class.
+   #
+   global dispatcher
+
+   #
+   # Compute the ticker sleep rate.
+   #
+   # @p
+   method compute_idle_sleep()
+      local n
+      if *tickers = 0 then 
+         idle_sleep := idle_sleep_max
+      else {
+         #
+         # Get minimum ticker rate
+         #
+         idle_sleep := &null
+         every n := (!tickers).ticker_rate do
+            (/idle_sleep := n) | (idle_sleep >:= n)
+         #
+         # Divide by number of tickers so that tickers with same tick
+         # rate are still scheduled correctly.
+         #
+         idle_sleep /:= *tickers
+         #
+         # Make between 10 and 50; not too quick to give a busy wait, not
+         # too slow that events are not processed promptly.
+         #
+         idle_sleep <:= idle_sleep_min
+         idle_sleep >:= idle_sleep_max
+      }
+   end
+
+   #
+   # Time of day
+   #
+   # @p
+   method curr_time_of_day()
+      local t
+      t := gettimeofday()
+      return t[1] * 1000 + t[2] / 1000
+   end
+
+   #
+   # Delete a ticker
+   #
+   # @p
+   method stop_ticker(t)
+      if \t.ticker_rate then {
+         delete(tickers, t)
+         t.ticker_count := t.next_tick_time := t.ticker_rate := &null
+         compute_idle_sleep()
+      }
+   end
+
+   #
+   # Add a ticker, or reset its time to a new value.
+   # 
+   # @p
+   method start_ticker(t, n, d, c)
+      insert(tickers, t)
+      /n := 0
+      t.ticker_rate := n
+      if /d then
+         t.next_tick_time := 0
+      else
+         t.next_tick_time := curr_time_of_day() + d
+      t.ticker_count := c
+      compute_idle_sleep()
+   end
+
+   #
+   # Change a ticker's tick rate, to take effect after its
+   # next tick.
+   # 
+   # @p
+   method retime_ticker(t, n)
+      if \t.ticker_rate then {
+         /n := 0
+         t.ticker_rate := n
+         compute_idle_sleep()
+      }
+   end
+
+   #
+   # Add a dialog
+   #
+   # @p
+   method add(d)
+      insert(dialogs, d)
+   end
+
+   #
+   # Delete a dialog
+   #
+   # @p
+   method del(d)
+      delete(dialogs, d)
+   end
+
+   #
+   # Loop until dialog r is closed processing events and tickers.  If r
+   # is omitted, then loop until there are no open dialogs.
+   #
+   # @p
+   method message_loop(r)
+      if /r then {
+         while *dispatcher.dialogs > 0 do
+            do_event() | do_validate() | do_ticker() | delay(idle_sleep)
+      } else {
+         while \r.is_open do
+            do_event() | do_validate() | do_ticker() | delay(idle_sleep)
+      }
+   end
+
+   method do_event()
+      local d, bag, e
+      bag := []
+      every d := !dialogs do {
+         if *Pending(d.win) > 0 then {
+            if /d.is_blocked_flag then
+               put(bag, d)
+            else {
+               while *Pending(d.win) > 0 do {
+                  #
+                  # Discard the event and beep in the window.
+                  # 
+                  e := ::Event(d.win)
+                  if not(e === (-12 | &lrelease | &rrelease | &mrelease | &ldrag | &rdrag | &mdrag)) then
+                     Alert(d.win)
+               }
+            }
+         }
+      }
+      if d := ?bag then {
+         d.process_event(::Event(d.win))
+         return
+      }
+   end
+
+   method do_validate()
+      local d, bag
+      bag := []
+      every d := !dialogs do {
+         # check if dialog supports validation, for backward compatibility
+         if d["all_valid"] & d.needs_validate() then
+            put(bag, d)
+      }
+      if d := ?bag then {
+         d.invoke_validate()
+         return
+      }
+   end
+
+   method do_ticker()
+      local curr_time, d, bag
+
+      curr_time := curr_time_of_day()
+      bag := []
+      every d := !tickers do {
+         if curr_time >= d.next_tick_time then
+            put(bag, d)
+      }
+      if d := ?bag then {
+         d.tick()
+         if \d.ticker_count then {
+            d.ticker_count -:= 1
+            if d.ticker_count <= 0 then
+               stop_ticker(d)
+         }
+         #
+         # We have to take into account the fact that d.tick() may
+         # delete itself as a ticker.
+         #
+         d.next_tick_time := \d.ticker_rate + curr_time_of_day()
+         return
+      }
+   end
+
+   #
+   # Return a list of unblocked dialogs.
+   #
+   # @p
+   method list_unblocked()
+      local d, res
+
+      res := []
+      every d := !dialogs do
+         if /d.is_blocked_flag then
+            put(res, d)
+
+      return res
+   end
+
+   #
+   # Generate any (unblocked) dialogs which are instances of
+   # the given class.  If the parameter is omitted, all unblocked
+   # dialogs are generated.
+   #
+   method find_dialog(class_name)
+      local d
+      every d := !dialogs do {
+         if /d.is_blocked_flag & 
+            (/class_name | lang::is_instance(d, class_name)) then
+             suspend d
+      }
+   end
+
+   initially
+      dialogs := set([])
+      tickers := set([])
+      idle_sleep_min := 10
+      idle_sleep_max := 50
+      compute_idle_sleep()
+end

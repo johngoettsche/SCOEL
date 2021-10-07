@@ -1,0 +1,155 @@
+#
+# $Id: encode.icn,v 1.3 2006-07-10 13:43:32 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package lang
+
+import util
+
+#  Together with decode.icn, these functions provide a way to encode
+# and decode arbitrary objects to and from strings.  Class instances
+# are handled specially, in that the instance must define how it is
+# to be encoded/decoded by implementing the methods in {ClassCoding}.
+# The {SelectiveClassCoding} class provides a flexible implementation of these
+# methods, allowing selected member variables to be saved using
+# independent tags.  This allows the class to change considerably and
+# still be backward-compatible with old encodings.
+#
+# @example
+# @ import lang
+# @ ...
+# @ obj := ... any object ...
+# @ s := lang::encode(obj)
+# @ # s is now a string representation of obj
+# @ obj2 := lang::decode(s)
+# @ # now obj and obj2 should have the same value
+#
+
+#
+# Return a string, being the encoded representation of the given object.
+#
+procedure encode(o)
+   local e
+   e := Encode()
+   e.encode(o)
+   return e.get_string()
+end
+
+#
+# This class is used to encode arbitrary objects into strings.
+#
+# Classes to be encoded must subclass ClassCoding, which allows specification
+# of how to encode a class instance.
+#
+class Encode : Object(
+   tag_count,
+   seen,
+   string_buff
+   )
+
+   method get_string()
+      return string_buff.get_string("|")
+   end
+
+   method encode_string(s)
+      local buff
+      static printable
+      initial
+         printable := cset(&ascii[33:128]) -- '|\\'
+
+      buff := StringBuff()
+      s ? {
+         repeat {
+            buff.add(tab(many(printable)))
+            if pos(0) then
+               return buff.get_string()
+            buff.add("\\" || right(ord(move(1)), 3, "0"))
+         }
+      }	 
+   end
+
+   method encode_record(o)
+      line_out(lang::get_name(o))
+      line_out(*o)
+      seen[o] := (tag_count +:= 1)
+      every encode(!o)
+   end
+
+   method encode(o)
+      local im, ty, i, pairs
+
+      if i := \seen[o] then {
+         line_out(i)
+         return
+      }
+
+      ty := lang::get_type(o)
+      line_out(ty)
+      case ty of {
+         "class" :
+            encode_class(o)
+
+         "record" :
+            encode_record(o)
+
+         "procedure" :
+            line_out(lang::get_name(o))
+
+         "null" :
+            &null
+
+         "string" :
+            line_out(encode_string(o))
+
+         "cset" :
+            line_out(encode_string(string(o)))
+
+         "integer" |
+            "real" :
+            line_out(string(o))
+
+         "set" |
+            "list" : {
+               line_out(*o)
+               seen[o] := (tag_count +:= 1)
+               every encode(!o)
+            }
+
+         "table" : {
+            seen[o] := (tag_count +:= 1)
+            encode(o[[]])
+            pairs := sort(o)
+            line_out(*pairs)
+            every encode(!!pairs)
+         }
+
+         default : 
+            &null
+
+      }
+   end
+
+   method line_out(s)
+      string_buff.add(s)
+   end
+
+   method encode_class(o)
+      local cname, t, m, e
+
+      cname := lang::get_class_name(o) | stop("invalid class name")
+      line_out(cname)
+      seen[o] := (tag_count +:= 1)
+
+      o.pre_encode()
+      o.encode_obj(self)
+   end
+
+   initially()
+      tag_count := 0
+      seen := table()
+      string_buff := StringBuff()
+end

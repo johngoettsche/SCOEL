@@ -1,0 +1,27 @@
+#
+# $Id: canvasiconbuttonui.icn,v 1.2 2006-07-09 23:43:12 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+
+
+class CanvasIconButtonUI : BasicCanvasComponentUI()
+   method create_canvas_component(canvas)
+      local t
+      t := CanvasIconButton()
+      t.set_img(
+                $include "icon/icon.icon"
+                )
+      t.w_default := t.h_default := 1
+      return t
+   end
+
+   initially()
+      self.BasicCanvasComponentUI.initially("Buttons", 
+                                            "IconButton",
+                                            $include "icon/icn5.icon"
+                                            )
+end

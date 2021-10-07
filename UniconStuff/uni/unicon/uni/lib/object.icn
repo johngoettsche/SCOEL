@@ -1,0 +1,68 @@
+#
+# $Id: object.icn,v 1.2 2004-02-12 17:07:56 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package lang
+
+class Object()
+   #
+   # Clone the object.
+   #
+   method clone(seen)
+      return lang::object_clone(self, seen)
+   end
+
+   #
+   # Return a string representation of the oject.
+   #
+   method to_string(depth, seen)
+      return lang::object_to_string(self, depth, seen)
+   end
+
+   #
+   # Test equality of this object with another
+   #
+   method equals(other, seen)
+      return lang::object_equals(self, other, seen)
+   end
+
+   #
+   # Return a hash code for the object
+   #
+   method hash_code(depth, seen)
+      return lang::object_hash_code(self, depth, seen)
+   end
+
+   #
+   # Return the class name as a string
+   #
+   method get_class_name()
+      return lang::get_class_name(self)
+   end
+
+   #
+   # Return the class instance number
+   #
+   method get_id()
+      return lang::get_id(self)
+   end
+
+   #
+   # Get the Class object for this object  
+   #
+   method get_class()
+      return lang::get_class(self)
+   end
+
+   #
+   # Succeed if and only if this object is an instance of class with the given name
+   #
+   method is_instance(name)
+      return lang::is_instance(self, name)
+   end
+end
+

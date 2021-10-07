@@ -1,0 +1,46 @@
+# animationset.icn
+#
+#  Author : Jafar Al-Gharaibeh
+#  Date   : Oct/07/08
+#
+
+package graphics3d
+
+$include "graphics3dh.icn"
+
+#
+#
+#
+class AnimationSet(
+   label,
+   lsAnimation,
+   maxKey
+   )
+   method init()
+      lsAnimation := table()
+   end
+
+   method get_label()
+     return label
+   end
+   
+   method is_name(nam)
+      if label==name then return self
+   end
+  
+   method addAnimation(anim)   
+      lsAnimation[anim.boneName]:=anim
+   end
+   
+   method get_animation_for_bone(bname) 
+     	if member(lsAnimation, bname) then return lsAnimation[bname]
+   end
+   
+   method get_max_key()
+      return maxKey
+   end
+
+   
+   initially
+      init()
+end

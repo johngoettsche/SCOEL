@@ -1,0 +1,530 @@
+#
+# session.icn
+# Handles the main debugging session properties such as initialization
+# Author : Ziad Al-Sharif
+# Date   : Feb 24, 2008 
+# e-mail : zsharif@gmail.com
+#
+
+$include "evdefs.icn"
+$include "defaults.icn"
+
+#
+# This class is used to handle the current debugging state 
+#
+class Session(
+   DState,       # an object of the class State()
+   Help,         # an object of the class HELP()
+   Message,      # the formatted output message
+   Debug         # An object of the class Evaluator() 
+   )
+
+#
+# Here where the udb Session starts on
+#
+method startSession()
+   local arg, t
+
+   #-- it may need to be in EvInit() for the sake of re-run
+   &eventsource := &null
+
+   EvInit(DState.TP) | stop("cant start evinit on " || DState.TP[1])
+   Message :="   Starting program: "
+   every arg := !DState.TP do Message ||:=" "||arg
+   Message ||:="\n"
+   DState.Write(Message)
+   #DState.srcCode.analyzeGlobalNames()
+
+   if DState.State = RUN  then {
+      #--- TEST Time
+      # t := keyword("&time", Monitored)
+      # a generator that ends when TP is over and no more events out of it.
+      # every udb_evalTree(eventMask, activation_record) do
+      #Debug.initEvaluator()
+      every Debug.startEvaluator() do{
+         if DState.State = PAUSE then{
+            if DState.RunCode = SIGNAL then{
+               Message := "\n   "||DState.TP[1]||" program received a signal "||
+                          &eventvalue||"."
+               DState.Write(Message)
+               }
+            # suspends the loop and go back to udb_Console() for a new cmd.
+            suspend
+            }
+         if DState.State = END then{
+            # The program exit normally
+            break
+            }
+      }#end every 
+   }
+   #--- Test
+   #write("====================================")
+   #write("The monitoring cost is :", keyword("&time", Monitored) - t)
+   #write("====================================")
+   #--- Test
+
+  DState.State := END
+  Message := "\n   "||DState.TP[1]||" program exited normally."
+  DState.Write(Message)
+  return
+end
+
+#
+# Parse a command
+#
+method parse_Command(cmd)
+
+   case cmd[1] of{
+     #-The start of the standard debugging commands
+     "load"   :{  cmdLoad(cmd)                      }
+     "r"      |
+     "run"    :{  cmdRun(cmd)                       }
+     "q"      |
+     "quit"   :{
+	write(&errout, "received ", image(cmd[1]), ", quitting")
+	cmdQuit()                         }
+     "p"      |
+     "print"  :{  cmdPrint(cmd[2:0])                }
+     "b"      |
+     "break"  :{  Debug.Break.cmdBreak(cmd)         }
+     "watch"  |
+     "awatch" |
+     "twatch" |
+     "vwatch" |
+     "rwatch" |
+     "swatch" :{  Debug.Watch.cmdWatch(cmd)         }
+     "s"      |
+     "step"   :{  Debug.Step.cmdStep(cmd)           }
+     "n"      |
+     "next"   :{  Debug.Step.cmdNext(cmd)           }
+     "ret"    |
+     "return" |
+     "finish" :{  Debug.Step.cmdReturn(cmd)         }
+     "f"      |
+     "frame"  :{  Debug.Frame.cmdFrame(cmd)         }
+     "up"     :{  Debug.Frame.cmdUp()               }
+     "down"   :{  Debug.Frame.cmdDown()             }
+     "?"      |
+     "h"      |
+     "help"   :{  Help.cmdHelp(cmd)                 }
+     "c"      |
+     "cont"   |
+     "continue":{  Debug.Step.cmdContinue()         }
+     "w"      |
+     "where"  |
+     "backtrace"|
+     "bt"     :{  Debug.Frame.cmdBacktrace(cmd)     }
+     "l"      |
+     "list"   :{  Debug.Print.cmdList(cmd)          }
+     "clear"  :{  cmdClear(cmd)                     }
+     "delete" :{  cmdDelete(cmd)                    }
+     "enable" :{  cmdEnable(cmd)                    }
+     "disable":{  cmdDisable(cmd)                   }
+     # Temporal Assertions support
+     "assert" :{  Debug.DTA.cmdAssert(cmd)          }
+     #-cmds that are not in GDB
+     "source" |
+     "src"    :{  Debug.Print.cmdSource(cmd)        }
+     "trace"  :{  Debug.Trace.cmdTrace(cmd)         }
+     "info"   :{  cmdInfo(cmd)                      }
+     "analyze":{  Debug.Internal.cmdAnalyzeInfo(cmd[3]) }
+     #- the shell commands
+     "ls"|"ll":{ ls()     }
+     "pwd"    :{ pwd()    }
+     "cd"     :{ cd(cmd)  }
+     #-new set of commands for the UDB config script 
+     "loadscript" :{ }
+     "runscript"  :{ }
+     "#"  :{ }
+     default  :{
+        # anything else
+        DState.State := ERROR
+        Message := "\n   Undefined command: \""||DState.cmdHistory[1]||"\""||
+                   "\n   Try \"help\" for assistance."
+        DState.Write(Message)
+        }
+     }
+end
+
+#
+# Loads a file after running the UDB Session 
+# or loads an external monitor: load -external name
+#
+method cmdLoad(cmd)
+   
+   if cmd[2][1] == "-" then{
+      #load -agent name
+      if find("agent", cmd[2]) & \cmd[3] then{
+         if Debug.External.cmdLoad(cmd[3:0]) then{
+            Message := "\n   External Agent: \""|| cmd[-1] ||"\" _
+                        is loaded successfully."
+            DState.Write(Message)
+            }
+         else{
+            DState.State := ERROR
+            Message := "\n   Can not fined agent: \""|| cmd[3] ||"\" !!!."
+            DState.Write(Message)
+            }
+         } 
+      #load -semi-internal name 
+      else if find("semi-internal", cmd[2]) & \cmd[3] then
+         Debug.SemiInternal.cmdLoad(cmd[3])
+      else{
+         DState.State := ERROR
+         Message := "\n   Undefined Command: \""|| cmd[1] ||" "||cmd[2]||"\""||
+                    "\n   Try \"help\" for assistance."
+         DState.Write(Message)
+         }
+      }
+   else
+      DState.initializeState(cmd[2:0])
+end
+
+#
+# Runs the pre-loaded file, it can be used to re-run the program again
+#
+method cmdRun(cmd)
+   local i, ans, args
+     
+   if DState.State = (LOAD | END | PAUSE) then{
+      args := [DState.TP[1]]
+      if *cmd >= 2 then
+          every i:=2 to *cmd do
+             put(args, cmd[i])
+      DState.TP := args
+ 
+      if DState.State = PAUSE then{
+         Message  :="\n   The program being debugged has been started already."
+         Message||:="\n   Start it from the beginning? (Y/n)?: "
+         DState.Writes(Message)
+         if *(ans:=read())=0 | not(ans[1] == ("n"|"N")) then{
+            Debug.Watch.resetWatchInfo()
+            Debug.Trace.resetTraceInfo()
+            DState.Update(RERUN)
+            } 
+         else{
+            DState.State := SKIP
+            return
+            }
+         } 
+      else{
+         DState.Update(RUN)
+         if DState.RunCount >= 1 then{
+            Debug.Watch.resetWatchInfo()
+            Debug.Trace.resetTraceInfo()
+            }             
+         }
+      }
+   else{
+      DState.State := ERROR
+      Message   := "\n   No program to RUN, load program first_
+                    \n   Type \"help\" for assistance"
+      DState.Write(Message)
+   }
+end
+
+#
+# Allows you to quit the program.
+#
+method cmdQuit()
+   local ans
+
+   # check whether a program is running or not, Paused, etc??????
+   # do not exit directlly if the program is in the running state
+   if DState.State = (RUN | PAUSE) then{
+      DState.Writes("\n   The program "|| 
+                          DState.srcFile.exeName ||
+                          " is running.  Exit anyway (Y/n)?: ")
+      if (not (ans:=read())) | (*ans=0) | (map(ans[1]) == "y") then {
+         DState.State := QUIT
+	 }
+      else
+         DState.State := SKIP
+      }
+   else {
+      DState.State := QUIT
+      }
+end
+
+#
+# Enables some debugging commands
+#
+method cmdPrint(cmd)
+
+   if \cmd[2] & cmd[2] == "-internal" then
+      Debug.Internal.cmdPrintInfo(cmd[3])
+   else if \cmd[2] & cmd[2] == "-trace" then
+      Debug.Watch.cmdPrintTrace(cmd)
+   else
+      Debug.Print.cmdPrint(cmd)
+end
+
+#
+# clears breakpoints, watchpoints, and tracepoints 
+#
+method cmdClear(cmd)
+
+if *cmd = 1 then
+   Debug.Break.cmdClear(cmd)
+else{
+   case cmd[2] of  {
+      "b"          |
+      "break"      |
+      "breakpoint" |
+      "breakpoints":{ Debug.Break.cmdClear(cmd)     }
+      "awatch"     |
+      "rwatch"     |
+      "twatch"     |
+      "vwatch"     |
+      "swatch"     |
+      "watch"      |
+      "watchpoint" |
+      "watchpoints":{ Debug.Watch.cmdClear(cmd)     }
+      "ptrace"     |
+      "otrace"     |
+      "ftrace"     |
+      "trace"      |
+      "watchpoint" |
+      "tracepoints":{ Debug.Trace.cmdClear(cmd)     }
+      "internal"   :{                               }
+      "external"   :{                               }
+      default:{
+         DState.State := ERROR
+         Message:="\n   Undefined Command: \""||DState.cmdHistory[1]||"\""||
+                  "\n   Try \"help\" for assistance."
+         DState.Write(Message)
+         }
+      }
+   }
+end
+
+#
+# deletes breakpoints, watchpoints, and tracepoints 
+#
+method cmdDelete(cmd)
+
+if *cmd = 1 then
+   Debug.Break.cmdDelete(cmd)
+else{
+   case cmd[2] of  {
+      "b"          |
+      "break"      |
+      "breakpoint" |
+      "breakpoints":{ Debug.Break.cmdDelete(cmd)    }
+      "awatch"     |
+      "rwatch"     |
+      "twatch"     |
+      "vwatch"     |
+      "swatch"     |
+      "watch"      |
+      "watchpoint" |
+      "watchpoints":{ Debug.Watch.cmdDelete(cmd)    }
+      "ptrace"     |
+      "otrace"     |
+      "ftrace"     |
+      "trace"      |
+      "tracepoint" |
+      "tracepoints":{ Debug.Trace.cmdDelete(cmd)    }
+      "internal"   :{                               }
+      "external"   :{                               }
+      default:{
+         DState.State := ERROR
+         Message:="\n   Undefined Command: \""||DState.cmdHistory[1]||"\""||
+                  "\n   Try \"help\" for assistance."
+         DState.Write(Message)
+         }
+      }
+   }
+end
+
+#
+# Enables some debugging commands
+#
+method cmdEnable(cmd)
+
+if *cmd = 1 then
+   Debug.Break.cmdEnable(cmd)
+else{
+   case cmd[2] of  {
+      "b"          |
+      "break"      |
+      "breakpoint" |
+      "breakpoints":{ Debug.Break.cmdEnable(cmd)       }
+      "awatch"     |
+      "rwatch"     |
+      "twatch"     |
+      "vwatch"     |
+      "swatch"     |
+      "watch"      |
+      "watchpoint" |
+      "watchpoints":{ Debug.Watch.cmdEnable(cmd)       }
+      "ptrace"     |
+      "otrace"     |
+      "ftrace"     |
+      "trace"      |
+      "watchpoint" |
+      "tracepoints":{ Debug.Trace.cmdEnable(cmd)       }
+      "internal"   :{ Debug.Internal.cmdEnable(cmd[3]) }
+      "external"   :{ Debug.Internal.cmdEnable(cmd[3]) }
+      default:{
+         DState.State := ERROR
+         Message:="\n   Undefined Command: \""||DState.cmdHistory[1]||"\""||
+                  "\n   Try \"help\" for assistance."
+         DState.Write(Message)
+         }
+      }
+   }
+end
+
+#
+# Disables some debugging commands
+#
+method cmdDisable(cmd)
+
+if *cmd = 1 then
+   Debug.Break.cmdDisable(cmd)
+else{
+   case cmd[2] of  {
+      "b"          |
+      "break"      |
+      "breakpoint" |
+      "breakpoints":{ Debug.Break.cmdDisable(cmd)       }
+      "awatch"     |
+      "rwatch"     |
+      "twatch"     |
+      "vwatch"     |
+      "swatch"     |
+      "watch"      |
+      "watchpoint" |
+      "watchpoints":{ Debug.Watch.cmdDisable(cmd)       }
+      "ptrace"     |
+      "otrace"     |
+      "ftrace"     |
+      "trace"      |
+      "watchpoint" |
+      "tracepoints":{ Debug.Trace.cmdDisable(cmd)       }
+      "internal"   :{ Debug.Internal.cmdDisable(cmd[3]) }
+      "external"   :{ Debug.Internal.cmdDisable(cmd[3]) }
+      default:{
+          DState.State := ERROR
+          Message:="\n   Undefined Command: \""||DState.cmdHistory[1]||"\""||
+                   "\n   Try \"help\" for assistance."
+          DState.Write(Message)
+          }
+       }
+   }
+end
+
+#
+# Finds out information about some of the debugging commands
+#
+method cmdInfo(cmd)
+   local name := cmd[3]
+   #write(" =-------", ximage(cmd))
+   case cmd[2] of  {
+      "b"          |
+      "break"      |
+      "breakpoint" |
+      "breakpoints":{ Debug.Break.printBreakInfo(cmd)        }
+      "awatch"     |
+      "rwatch"     |
+      "twatch"     |
+      "vwatch"     |
+      "watch"      |
+      "watchpoint" |
+      "watchpoints":{ Debug.Watch.printWatchInfo(cmd)        }
+      "ptrace"     |
+      "otrace"     |
+      "ftrace"     |
+      "trace"      |
+      "watchpoint" |
+      "tracepoints":{ Debug.Trace.printTraceInfo(cmd)        }
+      # The followings are for source code information
+      "global"     :{ Debug.Print.cmdPrint(["p","-g"])       }
+      "local"      :{ Debug.Print.cmdPrint(["p","-l"])       }
+      "static"     :{ Debug.Print.cmdPrint(["p","-s"])       }
+      "param"      |
+      "parameter"  :{ Debug.Print.cmdPrint(["p","-p"])       }
+      "source"     :{ Debug.Print.cmdSource(["src"])         }
+      "file"       :{ Debug.Print.cmdSource(["src","-file"]) }
+      "found"      :{ Debug.Print.cmdSource(["src","-f"])    }
+      "missing"    :{ Debug.Print.cmdSource(["src","-m"])    }
+      "user"       :{ Debug.Print.cmdSource(["src","-u"])    }
+      "lib"        :{ Debug.Print.cmdSource(["src","-l"])    }
+      "pkg"        |
+      "package"    :{ Debug.Print.cmdSource(["src","-pkg"])  }
+      "cls"        |
+      "class"      :{ Debug.Print.cmdSource(["src","-cls"])  }
+      "rec"        |
+      "record"     :{ Debug.Print.cmdSource(["src","-rec"])  }
+      "proc"       |
+      "procedure"  :{ Debug.Print.cmdSource(["src","-proc"]) }
+      "func"       |
+      "function"   :{ Debug.Print.cmdSource(["src","-func"]) }
+       
+      "icode"      :{ Debug.Print.cmdSource(["src","-icode"])}
+      
+      # the follwing is to query about agents
+      "agent"      |      
+      "agents"     :{ Debug.Internal.cmdInfo(name)
+                      Debug.External.cmdInfo(name)           }
+      "internal"   |      
+      "internals"  :{ Debug.Internal.cmdInfo(name)           }
+      "external"   |
+      "externals"  :{ Debug.External.cmdInfo(name)           }
+      # temporal assertions
+      "assert"     |
+      "assertion"  :{ Debug.DTA.cmdInfo(cmd)                 }
+      default:{
+          DState.State := ERROR
+          Message := "\n   Undefined Command: \""||DState.cmdHistory[1]||"\""||
+                     "\n   Try \"help\" for assistance."
+          DState.Write(Message)
+          }
+      }
+end
+
+#
+# the shell ls command
+#
+method ls()
+   system(DState.cmdHistory[1])
+end
+
+#
+# the shell pwd command
+#
+method pwd()
+   system(DState.cmdHistory[1])
+end
+
+#
+# the shell cd command
+#
+method cd(cmd)
+   chdir(cmd[2])
+end
+
+#
+# Initialization
+#
+initially()
+
+   Debug  := Evaluator()
+   Help   := HELP()
+
+   DState := Help.DState            := 
+             Debug.DState           := 
+             Debug.Break.DState     := 
+             Debug.Watch.DState     := 
+             Debug.Step.DState      := 
+             Debug.Frame.DState     := 
+             Debug.Print.DState     := 
+             Debug.Trace.DState     := 
+             Debug.Internal.DState  := 
+             Debug.External.DState  := 
+             Debug.DTA.DState       := State()
+
+# Test : To test the inter-program event forwarding
+#        DState.external := debug.external
+end

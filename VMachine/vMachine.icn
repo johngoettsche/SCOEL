@@ -1,0 +1,319 @@
+record identifier(address, value)
+record address(block, offset)
+record descriptor(vword, dword)
+
+global
+	machine,
+	WORD,
+	STACK,
+	HEAP,
+	MAIN,
+	NFLAG,
+	PFLAG,
+	VFLAG,
+	NULL,
+	INT,
+	FLOAT,
+	CSET,
+	FILE,
+	CLASS,
+	METHOD,
+	CONSTRUCTOR,
+	LIST,
+	SET,
+	TABLE,
+	RECORD,
+	POINTER
+	
+procedure main(arg)
+	WORD := 32
+	STACK := "stack"
+	HEAP := "heap"
+	MAIN := "main"
+	NFLAG := 2^(WORD - 1)  # not a qualifier or non string
+	PFLAG := 2^(WORD - 2)  # pointer
+	VFLAG := 2^(WORD - 3)  # points to a descriptor
+	NULL := 0
+	INT := 1
+	FLOAT := 2
+	CSET := 3
+	FILE := 4
+	CLASS := 5
+	METHOD := 6
+	CONSTRUCTOR := 7
+	LIST := 8
+	SET := 9
+	TABLE := 10
+	RECORD := 11 
+	
+	machine := Machine(arg[1])
+	machine.setup()
+	machine.run()
+end
+
+class InstructionFactory()
+	local
+		dao,
+		deliminator,
+		filename
+		
+	method createInstruction(line)
+		local
+			ident,
+			arg1,
+			arg2,
+			arg3,
+			instr,
+			label
+		
+		label := ""
+#		deliminator := " "
+		line ? {
+			tab(many(' \t'))
+			label := tab(many(&letters))
+			tab(many(deliminator))
+			arg1 :=  tab(many(&letters))
+			if /arg1  then arg1 :=  tab(many(&digits))
+			tab(many(deliminator))
+			arg2 :=  tab(many(&letters))
+			if /arg2 then arg2 :=  tab(many(&digits))
+			tab(many(deliminator))
+			arg3 :=  tab(many(&letters))
+			if /arg3 then arg3 :=  tab(many(&digits))
+		}
+		case (label) of {
+			"add" : instr := Add()
+			"div" : instr := Div()
+			"halt" : instr := Halt()
+			"load" : instr := Load(arg1)
+			"loadc" :  instr := Loadc(arg1, arg2)
+			"mul" : instr := Mul()
+			"pop" : instr := Pop()
+			"push" : instr := Push(arg1)
+			"store" : instr := Store(arg1, arg2)
+			"sub" : instr := Sub()
+			"" : instr := &null
+			default : write("instruction ", label, " not found.")
+		}
+		if \instr then return instr
+	end
+	
+	method makeInstructionList()
+		local
+			instr,
+			line,
+			list
+		
+		list := []
+		postfix := ".instr"
+		dao := DAO(filename, "r", postfix)
+		
+		while line := dao.readln() do {
+			write("|", line, "|")
+			if *line > 0 then {
+				instr := createInstruction(line)
+				if \instr then put(list, instr)
+			}
+		}
+		printInstructionList(list)
+		if \dao then dao.closeFile()
+		write("list size: ", *list)
+		return list
+	end
+	
+	method printInstructionList(list)
+		write("-----------------------")
+		every \(item := !list) do {
+			write(item.to_string())
+		}
+		write("-----------------------")
+	end
+	
+initially(f, d)
+	filename := f
+	deliminator := d
+end
+
+class Machine()		
+	local 
+		continue,
+		dao,
+		extremePointer,
+		framePointer,
+		heapPointer,
+		identifiers,
+		memory,
+		programCounter,
+		stack,
+		stackPointer,
+		instructionFactory
+	
+	method setup()
+		memory := MemoryBlock()
+		memory.block[MAIN] := instructionFactory.makeInstructionList()
+		write(*memory.block[MAIN])
+		instructionFactory.printInstructionList(memory.block[MAIN])
+		write(to_string())
+	end
+	
+	method makeLabel()
+		static
+			label
+			
+		initial {
+			label := 0
+		}
+		label +:= 1
+		return "Label_" || label
+	end
+	
+	method makeIdentifier(address, value)
+		label := makeLabel()
+		ident := identifier(address, value)
+		identifiers[label] := ident
+	end
+	
+	method makeDWord(arg)
+		
+	end
+	
+	method makeVWord()
+	
+	end
+	
+	method makeDescriptor(arg)
+		dword := makeDWord(arg)
+		vword := makeVWord()
+		return descriptor(dword, vword)
+	end
+	
+	method storeChars(chars)
+		#make a c function
+		
+		every char := !chars do {
+			
+		}
+	end
+	
+	method run()
+		local
+			elem,
+			instr
+			
+		continue := "true"
+		while continue == "true" do {	
+			instr := memory.block[MAIN][programCounter] # IR <- C[PC]
+			if \instr then {
+				write(instr.to_string())
+				programCounter +:= 1 # PC++
+				instr.execute() # execute
+			} else {
+				stop("something went wrong in run()")
+			}
+		}
+		write("result: ", pop(stack))
+		every elem := !stack do write(elem)
+		printMemory()
+	end
+	
+	method printList(list)
+		every elem := !list do {
+			if type(elem) ?? "string" then write(elem)
+			else write(elem.to_string())
+		}
+	end
+	
+	method printMemory()
+		write("==============")
+		printList(memory.block[MAIN])
+		write("-------------------------")
+		printList(memory.block[STACK])
+		write("-------------------------")
+		printList(memory.block[HEAP])
+		write("==============")
+	end
+	
+	method to_string()
+		local
+			count,
+			field,
+			str
+			
+		str := type(self) || "("
+		count := 1
+		every field := fieldnames(self) do {
+			if count > 1 then str ||:= ", "
+			str ||:= field
+			count +:= 1
+		}
+		str ||:= ")\n"
+		return str
+	end
+	
+initially(filename)
+	programCounter := 1
+	stackPointer := 1
+	heapPointer := 1
+	Machine := self
+	identifiers := table()
+	stack := []
+	instructionFactory := InstructionFactory(filename, " ")
+end
+
+class MemoryBlock()
+	local
+		block
+	
+	method addToMain(item)
+		local 
+			addr,
+			ident,
+			offset
+			
+		
+		if \item then pointer := item
+		else pointer := makeLabel()
+		offset := *block[MAIN] + 1
+		insert(block[MAIN], offset, pointer)
+		addr := address(MAIN, pointer)
+		ident := identifier(addr, pointer)
+		put(identifiers, ident)
+	end
+
+	method addToStack(item)
+		local 
+			addr,
+			ident,
+			offset
+		
+		if \item then pointer := item
+		else pointer := makeLabel()
+		offset := *block[STACK] + 1
+		insert(block[STACK], offset, pointer)
+		addr := address(STACK, pointer)
+		ident := identifier(addr, pointer)
+		put(identifiers, ident)
+	end
+		
+	method addToHeap(item)
+		local
+			addr,
+			ident,
+			offset
+		
+		if \item then pointer := item
+		else pointer := makeLabel()		
+		heapPointer +:= 1
+		offset := heapPointer
+		insert(block[HEAP], offset, pointer)
+		addr := address(HEAP, pointer)
+		ident := identifier(addr, pointer)
+		put(identifiers, ident)
+	end	
+	
+initially()
+	block := table()
+	block[MAIN] := []
+	block[HEAP] := []
+	block[STACK] := []
+end

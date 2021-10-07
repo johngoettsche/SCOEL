@@ -1,0 +1,1169 @@
+#
+# $Id: component.icn,v 1.22 2010-01-22 05:41:21 jeffery Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+import lang
+import util
+
+$include "guih.icn"
+
+#
+# This is the parent class of all the GUI components.  All of
+# its methods and variables therefore apply to its sub-classes.
+#
+class Component : Object : SetFields : Connectable(
+   #
+   # x position as specified by {set_pos()}, eg "50%"
+   #                        
+   x_spec,
+   #
+   # y position as specified by set_pos().
+   #
+   y_spec,
+   #
+   # width specifier as specified in set_size(), eg "100%"              
+   #
+   w_spec, 
+   #
+   # height specifier as specified in set_size(),
+   #
+   h_spec, 
+   #
+   # x alignment as specified in set_align(), eg "l".             
+   #
+   x_align,
+   #
+   # y alignment as specified in set_align(), eg "b".
+   #
+   y_align,
+   #
+   # Absolute x position in pixels computed from x_spec and the
+   # dimensions of the enclosing object or window.
+   #
+   x,
+   #
+   # Absolute y position.
+   #
+   y,                       #         
+   #
+   # Absolute width in pixels computed from w_spec and the
+   # dimensions of the enclosing object or window.
+   w,
+   #
+   # Absolute height in pixels.
+   #
+   h,
+   #
+   # The {Dialog} class instance of which this {Component} is a part.
+   #
+   parent_dialog,
+   #
+   # A list of strings being the Icon graphics attributes, eg
+   # ["bg=blue", "resize=on"].
+   attribs,
+   #
+   # Flag indicating whether the {Component} currently has keyboard
+   # focus; {&null} means it hasn't.
+   has_focus,
+   #
+   # Flag indicating whether the {Component} currently is shaded;
+   # {&null} means it isn't.
+   is_shaded_flag, 
+   #
+   # A cloned window created by combining the Dialog's canvas
+   # with the Component's attributes, so drawing into this window
+   # will draw straight to the Dialog window with the correct
+   # attributes.
+   cwin,  
+   #
+   # A cloned window created by combining a buffer window with
+   # the {Component's} attributes.  This is used solely for
+   # double-buffering purposes.
+   cbwin,
+   #
+   # Flag indicating whether the {Component} accepts keyboard focus
+   # by way of the tab key being pressed;  {&null} means it doesn't.
+   accepts_focus_flag,
+   #
+   # Flag indicating whether the Component should have a border
+   # drawn around it; {&null} means no.  Many {Components} (such as
+   # {TextButtons}) ignore this flag.
+   draw_border_flag,
+   #
+   # Tooltip string
+   #
+   tooltip,         
+   #
+   # Reference to enclosing {Component} object.
+   #
+   parent,
+   #
+   # List of child components
+   #
+   children,
+   #
+   # Flag indicating whether component is up-to-date on the screen
+   #
+   valid,
+   #
+   # Mnemonic key for keyboard accelerators.
+   #
+   accel,
+   #
+   # Flags to turn on drag and drop
+   #
+   allow_drag_flag,
+   allow_drop_flag,
+   #
+   # Mouse pointer.
+   #
+   pointer,
+
+   ticker,
+
+   transparent,
+
+   #
+   # Flag to indicate whether we should auto update/resize after calling add()
+   #
+   auto_refresh
+   )
+
+   #
+   # Set the tooltip string.
+   #
+   method set_tooltip(x)
+      return self.tooltip := x
+   end
+
+   #
+   # Return the tooltip, if any.
+   #
+   method get_tooltip()
+      return self.tooltip
+   end
+
+   #
+   # Set the pointer.  When the mouse moves over the component,
+   # the pointer cursor will automatically be set to this value.
+   #
+   method set_pointer(x)
+      self.pointer := x
+      (\self.parent_dialog).synch_pointer()
+      return x
+   end
+
+   #
+   # Return the pointer string, if any.
+   #
+   method get_pointer()
+      return self.pointer
+   end
+
+   #
+   # Get the x position, as seen by a child component.
+   #
+   method get_x_reference()
+      return self.x
+   end
+
+   #
+   # Get the y position, as seen by a child component.
+   #
+   method get_y_reference()
+      return self.y
+   end
+
+   #
+   # Get the width, as seen by a child component.
+   #
+   method get_w_reference()
+      return self.w
+   end
+
+   #
+   # Get the height, as seen by a child component.
+   #
+   method get_h_reference()
+      return self.h
+   end
+
+   #
+   # Get the cloned window, as seen by a child component.
+   #
+   method get_cwin_reference()
+      return self.cwin
+   end
+
+   #
+   # Get the cloned buffer window, as seen by a child component.
+   #
+   method get_cbwin_reference()
+      return self.cbwin
+   end
+
+   #
+   # The parent dialog, as seen by a child component.
+   #
+   method get_parent_dialog_reference()
+      return self.parent_dialog
+   end
+
+   method fatal(s)
+      stop("gui : error whilst processing object " || lang::get_class_name(self) || " : " || s)
+   end
+
+   #
+   # This method can be overridden to succeed if the component should keep
+   # an event rather than allow it to be used by the parent dialog to move
+   # the focus between c
+   #
+   method keeps(e)
+   end
+
+   #
+   # Succeed if the component is hidden; for example if it is
+   # within a tabbed pane not presently visible.
+   #
+   method is_hidden()
+      return self.parent.is_hidden()
+   end
+
+   #
+   # Succeed if the component is not hidden.
+   #
+   method is_unhidden()
+      return self.parent.is_unhidden()
+   end
+
+   #
+   # Succeeds if the component is shaded; fails otherwise.  A
+   # shaded component, such as a button, may be displayed
+   # differently, and will not generate events.
+   #
+   method is_shaded()
+      return \self.is_shaded_flag | self.parent.is_shaded()
+   end
+
+   #
+   # Succeed if the component is not shaded.
+   #
+   method is_unshaded()
+      return /self.is_shaded_flag & self.parent.is_unshaded()
+   end
+
+   #
+   # Called from a component's {display()} method, this method
+   # filters the component to give a shaded appearance, if the
+   # {is_shaded_flag} is set.  {W} is the window to draw into
+   # (normally {self.cwin}).
+   #
+   method do_shading(W)
+      if is_shaded() then
+         FilterRectangle(W, self.x, self.y, self.w, self.h)
+   end
+
+   #
+   # Determines whether the component accepts the tab focus
+   #
+   method accepts_focus()
+      return \self.accepts_focus_flag
+   end
+
+   #
+   # Begin unique processing for this component.
+   #
+   method unique_start()
+      self.parent_dialog.set_unique(self)
+   end
+
+   #
+   # End unique processing for this component.
+   #
+   method unique_end(x)
+      self.parent_dialog.clear_unique(x)
+   end
+
+   #
+   # Handle the component's keyboard accelerator key.  By
+   # default, this requests the keyboard focus (if the
+   # component is configured to accept it).
+   #
+   method handle_accel(e)
+      if \accepts_focus_flag then
+         self.parent_dialog.set_focus(self, e)
+   end
+
+   #
+   # This handles an Icon event e.  It would
+   # not normally be called by a user program.
+   #
+   method handle_event(e)
+      local c
+      every c := !self.children do {
+         if /c.is_shaded_flag then
+            c.handle_event(e)
+         if /self.parent_dialog.is_open | \self.parent_dialog.unique_flag then
+            break
+      }
+   end
+
+   #
+   # Invoke handle_event and some basic icon events.
+   #
+   method do_handle_event(e)
+      #
+      # Let the component handle the event
+      #
+      handle_event(e)
+
+      #
+      # Generate basic events
+      #
+      if e === (&lpress | &rpress | &mpress) then {
+         fire_icon_events_on_mouse(MOUSE_PRESS_EVENT, e)
+      } else if e === (&ldrag | &rdrag | &mdrag) then {
+         fire_icon_events_on_mouse(MOUSE_DRAG_EVENT, e)
+      } else if e === -12 then {
+         fire_icon_events_on_mouse(MOUSE_MOTION_EVENT, e)
+      } else if e === (&lrelease | &rrelease | &mrelease) then {
+         fire_icon_events_on_mouse(MOUSE_RELEASE_EVENT, e)
+      } else {
+	 #
+	 # Non-mouse events.  By definition, these generate an ICON_EVENT.
+	 # If they are key presses, they generate a KEY_PRESS_EVENT.
+	 # If they are key releases, they generate a KEY_RELEASE_EVENT.
+	 # KEY_RELEASE_EVENTs do not occur unless input mask requests
+	 # them, and ivib does not yet know about KEY_RELEASE_EVENTs.
+	 # The other tricky part here is that in order for subcomponents
+	 # to get any events out of this, one has to visit children, which
+	 # is what the fire_..._on_mouse event does, as opposed to fire().
+	 #
+	 if (type(e)=="string") | (integer(e)>0) then {
+	    fire_icon_events_on_mouse(KEY_PRESS_EVENT, e)
+	    }
+	 else if integer(e) < -14 then {
+	    # -14 is the smallest built-in event, aka LASTEVENTCODE
+	    # need to think about whether this should be defined in guih.icn
+	    fire_icon_events_on_mouse(KEY_RELEASE_EVENT, e)
+	    }
+         fire(ICON_EVENT, e)
+      }
+   end
+
+   # @p
+   method fire_icon_events_on_mouse(p, e)
+      local sub
+      if in_region() & is_unhidden() then {
+         every sub := !children do {
+            sub.fire_icon_events_on_mouse(p, e)
+         }
+         fire(p, e)
+      }
+   end
+
+   #
+   # Swap the shaded status of the component.
+   #
+   method toggle_is_shaded()
+      if /self.is_shaded_flag then
+         self.is_shaded_flag := 1
+      else
+         self.is_shaded_flag := &null
+      self.invalidate()
+   end
+
+   #
+   # Set auto_refresh so that the component 
+   # resize() itself on add()/remove()
+   #
+   method set_auto_refresh()
+      self.auto_refresh := 1
+   end
+
+   #
+   # Clear auto_refresh
+   #
+   method clear_auto_refresh()
+      self.auto_refresh := &null
+   end
+
+
+   #
+   # Set the component to be transparent
+   #
+   method set_transparent()
+      self.transparent := 1
+   end
+
+   #
+   # Set the component to be non-transparent
+   #
+   method clear_transparent()
+      self.transparent := &null
+   end
+
+   #
+   # Set the shaded status of the component to shaded.
+   #
+   method set_is_shaded()
+      self.is_shaded_flag := 1
+      self.invalidate()
+   end
+
+   #
+   # Set the shaded status of the component to not shaded.
+   #
+   method clear_is_shaded()
+      self.is_shaded_flag := &null
+      self.invalidate()
+   end
+   
+   #
+   # Toggle whether or not to draw a border around the component.
+   # Different objects respond differently to this flag being
+   # set; some ignore it altogether.
+   #
+   method toggle_draw_border()
+      if /self.draw_border_flag then
+         self.draw_border_flag := 1
+      else
+         self.draw_border_flag := &null
+      self.invalidate()
+   end
+
+   #
+   # Set the component such that a border is drawn.
+   #
+   method set_draw_border()
+      self.draw_border_flag := 1
+      self.invalidate()
+   end
+
+   #
+   # Set the component such that a border is not drawn.
+   #
+   method clear_draw_border()
+      self.draw_border_flag := &null
+      self.invalidate()
+   end
+
+   #
+   # Set the flag indicating that the component accepts tab focus.
+   #
+   method set_accepts_focus()
+      return self.accepts_focus_flag := 1
+   end
+
+   #
+   # Clear the flag indicating that the component accepts tab focus.
+   #
+   method clear_accepts_focus()
+      return self.accepts_focus_flag := &null
+   end
+
+   #
+   # This draws, or re-draws, the component and all its children in the dialog
+   # window.
+   # @param buffer_flag   If this parameter is not null, then 
+   # @ the component is displayed into the buffer window, not
+   # @ the dialog window (this is used for double-buffering purposes).
+   #
+   method display(buffer_flag)
+      every (!self.children).display(buffer_flag)
+   end
+
+   #
+   # Add the Icon attribs of the component to the given parameter
+   # @example
+   # @ w.set_attribs("font=helvetica", "bg=pale blue")
+   #
+   method attrib(x[])
+      return self.attribs |||:= x
+   end
+   method set_attribs(x[])
+      return self.attribs |||:= x
+   end
+
+   #
+   # Equivalent to {set_attribs()}, above, but takes a list as a
+   # parameter.
+   # @param l   The list of attribs.
+   # @example
+   # @ w.set_attribs_list(["font=helvetica", "bg=pale blue"])
+   #
+   method set_attribs_list(l)
+      return self.attribs |||:= l
+   end
+
+   #
+   # The test for whether x1 and y1 lie within the bounds of the component.
+   # x1 and y1 default to {&x} and {&y} respectively.
+   #
+   method in_region(x1, y1)
+      /x1 := &x
+      /y1 := &y
+      return (self.x <= &x < self.x + self.w) & (self.y  <= &y < self.y + self.h)
+   end
+
+   #
+   # Method called when the component gets the keyboard focus; may be extended.
+   # @param e the event causing the change of focus, if any
+   #
+   method got_focus(e)
+      self.has_focus := 1
+      invalidate()
+      fire(GOT_FOCUS_EVENT, e)
+   end
+
+   #
+   # Return the Icon window of the dialog in which the component resides.
+   #
+   method get_parent_win()
+      return self.parent_dialog.get_win()
+   end
+
+   #
+   # Return the Icon buffer window of the dialog in which the component resides.
+   #
+   method get_parent_buffer_win()
+      return self.parent_dialog.get_buffer_win()
+   end
+
+   #
+   # Method called when the component loses the keyboard focus; may be extended.
+   # @param e the event causing the change of focus, if any
+   #
+   method lost_focus(e)
+      self.has_focus := &null
+      invalidate()
+      fire(LOST_FOCUS_EVENT, e)
+   end
+
+   #
+   # Set the x and y position of the component.  Each coordinate
+   # can be either an absolute pixel position, or can be given in
+   # the form of a percentage plus or minus an offset.
+   # @param x_spec   The x specification.
+   # @param y_spec   The y specification.
+   # @example
+   # @ c.set_pos(100, "25%")
+   # @ c.set_pos("50%-20", "25%+100")
+   #
+   method set_pos(x_spec, y_spec)
+      self.x_spec := x_spec
+      self.y_spec := y_spec
+   end
+
+   #
+   # Set the size of the component.  The parameters are in the
+   # same format as for {set_pos()}
+   # above.  Some components will
+   # set sensible default sizes, but for others the size must be
+   # set explicitly.
+   #
+   method set_size(w_spec, h_spec)
+      self.w_spec := w_spec
+      self.h_spec := h_spec
+   end
+
+   #
+   # Set the alignment of the component.  Options for
+   # {x_align} are ``l'', ``c'' and ``r'', for left, centre, and right
+   # alignment.  Options for {y_align} are ``t'', ``c'' and ``b'', 
+   # for top centre and bottom alignment.  The default alignment is ``l'', ``t''.
+   #
+   # @param x_align   The x alignment
+   # @param y_align   The y alignment
+   #
+   method set_align(x_align, y_align)
+      self.x_align := x_align
+      self.y_align := y_align
+   end
+
+   #
+   # Set the absolute x,y co-ordinates.
+   #
+   method set_abs_coords(x, y)
+      self.x := x
+      self.y := y
+   end
+
+   #
+   # Set the absolute width and height.
+   #
+   method set_abs_size(w, h)
+      self.w := w
+      self.h := h
+   end
+
+   #
+   # Set the accelerator key, which will be used with the Alt
+   # key to provide keyboard accelerators.
+   #
+   method set_accel(k)
+      self.accel := k
+   end
+
+   #
+   # Get the accelerator key, if any.
+   #
+   method get_accel()
+      return self.accel
+   end
+
+   #
+   # Get the component's parent component.
+   #
+   method get_parent()
+      return parent
+   end
+
+   #
+   # Set the component's parent component.
+   #
+   method set_parent(c)
+      self.parent := c
+   end
+
+   #
+   # Complete the final setup before display by initializing the parent
+   # dialog reference and creating the cloned windows.
+   #
+   method init(dont_force_new_win)
+      local i, p
+      if /self.parent then
+         fatal("incorrect ancestry (parent null)")
+      if /self.cwin | /dont_force_new_win then {
+	parent_dialog := parent.get_parent_dialog_reference()
+      	if cwin := (Clone ! ([parent.get_cwin_reference()] ||| attribs)) then {
+	   cbwin := (Clone ! ([parent.get_cbwin_reference()] ||| attribs))
+	   }
+      	else {
+	   # Clone failed, what to do?  Try to drop a single
+	   # attribute, as that will identify which one is hurting us.
+	   every i := 1 to *attribs do {
+	      p := pop(attribs)
+	      if cwin := (Clone ! ([parent.get_cwin_reference()] ||| attribs)) then {
+	      write(&errout, "clone failed, had to discard attribute ", image(p))
+	      break
+	      }
+	    push(attribs, p)
+	    }
+	    if /cwin then {
+	       write(&errout, "clone failed, discarding attributes:")
+	       every write(&errout, "\t", ! attribs)
+	       cwin := Clone(parent.get_cwin_reference())
+	       if /cwin then fatal("multiple bad attributes")
+	       	  cbwin := Clone(parent.get_cbwin_reference())
+	       if /cbwin then fatal("bad cbwin, multiple bad attributes")
+	       }
+	    else {
+	       cbwin := (Clone ! ([parent.get_cbwin_reference()] ||| attribs))
+	       if /cbwin then fatal("bad cbwin, not sure why")
+	       }
+	    }
+	 }
+      every (!self.children).init()
+   end
+
+   #
+   # Returns the dialog holding the component.
+   #
+   method get_parent_dialog()
+      return self.parent_dialog
+   end
+
+   #
+   # Sets the owning Dialog of the component.
+   #
+   # @param c   The parent dialog.
+   #
+   method set_parent_dialog(c)
+      return self.parent_dialog := c
+   end
+
+   #
+   # This method may be extended.  It is invoked after the
+   # position of the object has been computed and the window has
+   # been opened, but before the object has been displayed in the
+   # window.
+   #
+   method firstly()
+      every (!self.children).firstly()
+   end
+
+   #
+   # This method may be extended.  It is invoked just before the
+   # window is closed.
+   #
+   method finally()
+      stop_ticker()
+      Uncouple(\self.cwin)
+      Uncouple(\self.cbwin)
+      BevelDispose(\self.cwin)
+      BevelDispose(\self.cbwin)
+      self.cwin := self.cbwin := &null
+      every (!self.children).finally()
+   end
+
+   #
+   #
+   # Parse a position specification into an absolute value.
+   # @param total   The total value
+   # @param s  The size specifier 
+   #
+   method parse_pos(total, s)
+      local pct, off
+      s ? {
+         if pct := 0.01 * integer(tab(upto('%'))) then {
+            move(1) 
+            if ="-" then
+               off := -integer(tab(0)) | fail
+            else if ="+" then
+               off := integer(tab(0)) | fail
+            else off := 0
+         } else {
+            pct := 0
+            off := integer(tab(0)) | fail
+         }
+      }
+      return integer(pct * total + off)
+   end
+
+   #
+   # Resize this component using compute_absolutes, and then resize all
+   # its children.
+   #
+   method resize()
+      compute_absolutes()
+
+      # Now resize the children
+      every (!self.children).resize()
+
+      self.invalidate()
+   end
+
+   #
+   # Compute the absolute positions and sizes from the
+   # specifications given by {set_pos()} and {set_size()}.
+   # This method needs to be extended for a component which
+   # contains other components.
+   #
+   method compute_absolutes()
+      local wh, ww
+      #
+      # Check for unspecified fields
+      #
+      if /self.x_spec then
+         fatal("x position unspecified")
+
+      if /self.y_spec then
+         fatal("y position unspecified")
+
+      if /self.w_spec then
+         fatal("width unspecified")
+
+      if /self.h_spec then
+         fatal("height unspecified")
+
+      wh := self.parent.get_h_reference()
+      ww := self.parent.get_w_reference()
+
+      self.x := self.parent.get_x_reference() + parse_pos(ww, self.x_spec) | fatal("invalid x position specification: " || image(self.x_spec))
+      self.y := self.parent.get_y_reference() + parse_pos(wh, self.y_spec) | fatal("invalid y position specification: " || image(self.y_spec))
+      self.w := parse_pos(ww, self.w_spec) | fatal("invalid width specification: " || image(self.w_spec))
+      self.h := parse_pos(wh, self.h_spec) | fatal("invalid height specification: " || image(self.h_spec))
+
+      #
+      # Adjust x, y based on alignments
+      #
+      case self.x_align of {
+         "c" : self.x -:= self.w / 2
+         "r" : self.x -:= self.w
+         "l" : &null
+         default : fatal("incorrect x alignment specifier: " || image(self.x_align))
+      }
+      case self.y_align of {
+         "c" : self.y -:= self.h / 2
+         "b" : self.y -:= self.h
+         "t" : &null
+         default : fatal("incorrect y alignment specifier: " || image(self.y_align))
+      }
+   end
+
+   #
+   # Generate all the components, including subcomponents
+   #
+   method generate_components()
+      suspend (!self.children).generate_components() | self
+   end
+
+   #
+   # Search for a component which will accept focus on a mouse click amongst the
+   # components rooted at this component.
+   #
+   method find_focus()
+      local c, f
+      every c := !self.children do {
+         if f := c.find_focus() then
+            return f
+      }
+      if self.is_unshaded() & self.in_region() & self.accepts_focus() & self.is_unhidden() then
+         return self
+   end
+
+   #
+   # Search for a component with the matching accelerator key within
+   # components rooted at this component.
+   #
+   method find_accel(e)
+      local c, f
+      every c := !self.children do {
+         if f := c.find_accel(e) then
+            return f
+      }
+      if self.accel === e & self.is_unshaded() & self.is_unhidden() then
+         return self
+   end
+
+   #
+   # Invalidate the component so that it will be redrawn at the next opportunity.
+   #
+   method invalidate()
+      self.valid := &null
+      (\self.parent_dialog).all_valid := &null
+   end
+
+   #
+   # Succeed iff all of the components rooted at this component are valid.
+   #
+   method all_components_valid()
+      local c
+      every c := generate_components() do {
+         if /c.valid then
+            fail
+      }
+      return
+   end
+
+   #
+   # Validate the component, which means displaying it and setting the valid flag
+   #
+   method validate()
+      if /self.valid then {
+         self.is_hidden() | self.display()
+         every generate_components().valid := 1
+         child_validated(self)
+      } else
+         every (!self.children).validate()
+   end
+
+   #
+   # This is invoked when a child component has been validated.
+   #
+   method child_validated(c)
+      (\parent).child_validated(c)
+   end
+
+   #
+   # Add the {Component} to the list of children.
+   #
+   # @param c   The {Component} to add.
+   # @param i   The index to add at; if omitted then the new component
+   # @          is appended to the end.
+   #
+   method add(c, i)
+      local j
+      # make sure we don't have this component already
+      j := *self.children
+      while j>0 do {
+         if self.children[j]===c then fail # we have it.
+	 j-:=1
+   	 }
+	
+      if /i | i=0 | i=*self.children then 
+         put(self.children, c)
+      else
+         insert(self.children, i, c)
+
+      c.parent := self
+
+      if self.is_dialog_open() & \self.auto_refresh then{
+         c.init(1)
+         self.resize()
+      	 }
+      return
+   end
+
+   #
+   # Remove the {Component} from the list of children.
+   # @param c   The {Component} to remove.
+   #
+   method remove(c)
+      local i
+      every i := 1 to *self.children do {
+         if self.children[i] === c then {
+            delete(self.children, i)
+	    if self.is_dialog_open() & \(self.auto_refresh) then
+               self.resize()
+            return
+         }
+      }
+   end
+
+   #
+   # Succeed iff the component is in a dialog which is open.
+   #
+   method is_dialog_open()
+      return \ (\self.parent_dialog).is_open
+   end
+
+   #
+   # Get the list of {Components} in this {Container}.
+   # @return   The list of {Components}
+   #
+   method get_children()
+      return self.children
+   end
+
+   #
+   # For backward compatibility only...(now use {fire()}).
+   #
+   method create_event_and_fire(type, param)
+      return fire(type, param)
+   end
+
+   #
+   # Convenience method to start a ticker that invokes the "tick()" method
+   # in this class.
+   #
+   method set_ticker(n, d)
+      self.ticker.start(n, d)
+   end
+
+   #
+   # Stop the ticker.
+   #
+   method stop_ticker()
+      self.ticker.stop()
+   end
+
+   #
+   # Change the interval of the ticker
+   # @param n   the new interval.
+   #
+   method retime_ticker(n)
+      self.ticker.retime(n)
+   end
+
+   #
+   # Is the ticker ticking?
+   #
+   method is_ticking()
+      return self.ticker.is_ticking()
+   end
+
+   #
+   # This method should be implemented to make use of the component's default
+   # ticker.
+   #
+   abstract method tick()
+
+   #
+   # Drag and drop helper to invoke can_drag
+   #
+   method invoke_can_drag(ev)
+      local c, x, o
+      every c := !self.children do {
+         if x := c.invoke_can_drag(ev) then
+            return x
+      }
+      if \allow_drag_flag & o := can_drag(ev) then
+         return Drag(self, o, ev)
+   end
+
+   #
+   # Drag and drop helper to invoke drag_event
+   #
+   method invoke_drag_event(d)
+      return (!self.children).invoke_drag_event(d) | (\allow_drop_flag & drag_event(d))
+   end
+
+   #
+   # Drag and drop helper to invoke can_drop
+   #
+   method invoke_can_drop(d)
+      local c, x
+      every c := !self.children do {
+         if x := c.invoke_can_drop(d) then
+            return x
+      }
+      if \allow_drop_flag & can_drop(d) then
+         return self
+   end
+
+   #
+   # Drag and drop helper to invoke end_drag
+   #
+   method invoke_end_drag(d, c)
+      end_drag(d, c)
+   end
+
+   #
+   # Drag and drop helper to invoke drag_reset
+   #
+   method invoke_drag_reset()
+      every (!self.children).invoke_drag_reset()
+      drag_reset()
+   end
+
+   #
+   # Invoked on a drag gesture; if the  component wishes to start a drag and drop session,
+   # it should succeed, otherwise it should fail.
+   #
+   # NB - this method will only be invoked if the allow_drag flag is non-null.
+   #
+   # @param ev the Icon event, one of &ldrag, &rdrag, &mdrag.
+   #
+   method can_drag(ev)
+   end
+
+   #
+   # Invoked during a drag.  The component may update itself accordingly to indicate a potential
+   # drop.  If it succeeds, then the mouse cursor will be changed accordingly, to indicate this.
+   #
+   # NB - this method will only be invoked if the allow_drop flag is non-null.
+   #
+   # @param d the current Drag object.
+   #
+   method drag_event(d)
+   end
+
+   #
+   # Invoked on a drop.  If the component accepts the drop, it should handle it and succeed;
+   # otherwise it should fail.
+   #
+   # NB - this method will only be invoked if the allow_drop flag is non-null.
+   #
+   # @param d the current Drag object.
+   #
+   method can_drop(d)
+   end
+
+   #
+   # Invoked on the component that started the drag, after a successful drop
+   # @param d the current Drag object.
+   # @param c the component that accepted the drop
+   #
+   method end_drag(d, c)
+   end
+
+   #
+   # Invoked at the end of drag and drop (on all components) to clear any drag state
+   #
+   method drag_reset()
+   end
+
+   #
+   # Configure the component to allow drags, if it is so capable.
+   #
+   method set_allow_drag()
+      return self.allow_drag_flag := 1
+   end
+
+   #
+   # Configure the component to disallow drags.
+   #
+   method clear_allow_drag()
+      return self.allow_drag_flag := &null
+   end
+
+   #
+   # Configure the component to allow drops, if it is so capable.
+   #
+   method set_allow_drop()
+      return self.allow_drop_flag := 1
+   end
+
+   #
+   # Configure the component to disallow drops.
+   #
+   method clear_allow_drop()
+      return self.allow_drop_flag := &null
+   end
+
+   method set_one(attr, val)
+      case attr of {
+         "tooltip" : set_tooltip(string_val(attr, val))
+         "pointer" : set_pointer(string_val(attr, val))
+         "allow_drop" :
+            if test_flag(attr, val) then
+               set_allow_drop() 
+            else
+               clear_allow_drop()
+         "allow_drag" :
+            if test_flag(attr, val) then
+               set_allow_drag() 
+            else
+               clear_allow_drag()
+         "is_shaded" : 
+            if test_flag(attr, val) then
+               set_is_shaded() 
+            else
+               clear_is_shaded()
+         "draw_border" : 
+            if test_flag(attr, val) then
+               set_draw_border() 
+            else
+               clear_draw_border()
+         "accepts_focus" : 
+            if test_flag(attr, val) then
+               set_accepts_focus() 
+            else
+               clear_accepts_focus()
+         "pos" : set_pos!string_vals(attr, val)
+         "size" : set_size!string_vals(attr, val)
+         "align" : set_align!string_vals(attr, val)
+         "accel" : set_accel(string_val(attr, val))
+         default : {
+            if is_attrib(attr) then
+               set_attribs(as_attrib(attr, val))
+            else
+               field_error("Unknown attribute " || attr)
+         }
+      }
+   end
+
+   method is_attrib(s)
+      static attrib_set
+      initial {
+         attrib_set := set()
+         every insert(attrib_set, "label" | "posx" | "pos" | "posy" | "resize" | "size" | "height" | 
+                         "width" | "lines" | "columns" | "image" | "canvas" | "iconpos" | "iconlabel" | 
+                         "iconimage" | "echo" | "cursor" | "x" | "y" | "row" | "col" | "pointer" | 
+                         "pointerx" | "pointery" | "pointerrow" | "pointercol" | "display" | "depth" | 
+                         "displayheight" | "displaywidth" | "fg" | "bg" | "reverse" | "drawop" | "gamma" | 
+                         "font" | "fheight" | "fwidth" | "ascent" | "descent" | "leading" | "linewidth" | 
+                         "linestyle" | "fillstyle" | "pattern" | "clipx" | "clipy" | "clipw" | "cliph" | 
+                         "dx" | "dy" | "inputmask")
+      }
+      return member(attrib_set, s)
+   end
+
+   initially()
+      /dispatcher := Dispatcher()
+      self.Connectable.initially()
+      self.ticker := Ticker()
+      self.ticker.connect(self, "tick", TICK_EVENT)
+      self.attribs := []
+      self.children := []
+      self.x_align := "l"
+      self.y_align := "t"
+end

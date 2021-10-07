@@ -1,0 +1,1428 @@
+$include "ytab_h.icn"
+
+#
+# treenode is a record for historical reasons. This module probably
+# still compiles with icont, which simplifies bootstrapping. If not,
+# it might make sense to someday turn it into a class.
+#
+
+record treenode(label, children)
+procedure node(label, kids[])
+   return treenode(label, kids)
+end
+procedure leaf(label)
+   return treenode(label)
+end
+
+global thePackage
+
+procedure yyvarlists(node)
+   case type(node) of {
+      "treenode" : {
+	 if node.label == "varlist2" then {
+            yyprint("\n")
+	    every yyprint(node.children[1 to 3])
+	    }
+	 else if node.label == "varlist4" then {
+            yyvarlists(node.children[1])
+            yyprint("\n")
+	    every yyprint(node.children[3 to 5])
+	    }
+	 else if *node.children > 0 then {
+            every yyvarlists(!node.children)
+	    }
+	 else if node.label === "error" then fail
+	 else write("leaf, ", node.label)
+     }
+   }
+end
+
+procedure exists_statlists(node)
+   case type(node) of {
+      "treenode" : {
+	 if node.label == ("stalist2"|"stalist4") then return
+	 else if *node.children > 0 then {
+            return exists_statlists(!node.children)
+	    }
+      }
+   }
+end
+
+procedure yystalists(node)
+   case type(node) of {
+      "treenode" : {
+	 if node.label == "stalist2" then {
+            yyprint("\n")
+	    every yyprint(node.children[1 to 3])
+	    }
+	 else if node.label == "stalist4" then {
+            yystalists(node.children[1])
+            yyprint("\n")
+	    every yyprint(node.children[3 to 5])
+	    }
+	 else if *node.children > 0 then {
+            every yystalists(!node.children)
+	    }
+	 else if node.label === "error" then fail
+	 else write("leaf, ", node.label)
+     }
+   }
+end
+
+global list_of_invocables
+
+# under iconc, resort to some fakery to ensure that it doesn't think
+# these are unreachable procedures.
+procedure writes_faux_for_uneval(L, brackets)
+   /brackets := "{}"
+   if iconc ~=== 1 then fail
+   writes(yyout,brackets[1])
+   every temp := L[i:=1 to *L] do {
+      if type(temp) == "list" then {
+	 writes(yyout,";")
+	 writes_faux_for_uneval(temp, "")
+	 }
+      else {
+	 if i = 1 then {
+	    writes(yyout, temp, "(")
+	    every j := 2 to *L do {
+	       if j>2 then writes(yyout,",")
+	       writes(yyout,"(0|0.0|\"\"|''|&input)")
+	       }
+	    writes(yyout,")")
+	    }
+	 }
+      }
+   writes(yyout,brackets[2])
+end
+
+procedure writes_code_for_uneval(L)
+local i
+   writes(yyout, "[")
+   every temp := L[i := 1 to *L] do {
+      if type(temp) == "list" then {
+	 writes_code_for_uneval(temp)
+	 } 
+      else {
+	 writes(yyout, image(temp))
+	 if i = 1 then {
+	    /list_of_invocables := []
+	    if not (!list_of_invocables == temp) then
+	       put(list_of_invocables, temp)
+	    }
+	 if i < *L then {
+	    writes(yyout, ", ")	
+	    }
+	 }
+      }
+   writes(yyout, "]")
+   return
+end
+
+procedure make_list_for_uneval(L, word)
+   while tab(upto(word)) do {
+      temp := tab(many(word))
+      if proc(temp) | move(1) === "." then {
+	 L1 := []
+	 put(L1, temp)
+	 L1 := make_list_for_uneval(L1, word)
+	 put(L, L1)
+	 }
+      else {
+	 put(L, temp)
+	 }
+      }
+   return L
+end
+
+procedure emit_code_for_uneval(funcname)
+static word
+initial { word := &letters ++ &digits ++ '\'\"&~_' }
+   L := []
+   tab(many('`'))
+   temp := tab(upto('(.')) 
+   if \temp == "\\" then temp := "\\\\"
+   put(L, \temp)
+   L := make_list_for_uneval(L, word)
+
+   if iconc === 1 then {
+      writes(yyout, "(if getenv(\"NONSENSE\") then every ")
+      writes_faux_for_uneval(L)
+      writes(yyout," else ", funcname, "(")
+      writes_code_for_uneval(L)
+      writes(yyout,"))")
+      }
+   else {
+      writes(yyout, " ", funcname, "(")
+      writes_code_for_uneval(L)
+      writes(yyout, ")")
+      }
+   return
+end
+
+procedure emit_line_directive_if_needed(node)
+   if (outfilename ~== node.filename)|(outline ~= node.line) then {
+      write(yyout,"\n#line ", node.line-1," \"", node.filename,"\"")
+      outline := node.line
+      outcol := 1
+      outfilename := node.filename
+      }
+end
+
+# the unevaluated expressions in pattern matching has the following major cases
+# 1. local/global variable ( indicated by absence of . and ( )
+# 2. member field          ( indicated by presence of . and absence of ( )  
+# 3. procedure invocation  ( indicated by presence of ( and absence of . )
+# 4. method invocation     ( indicated by presence of both . ( )
+# Currently we return error for cases like x.y.z or x.y.z() ( possible future work
+# resolve multiple references
+# will add error checking later
+
+procedure process_uneval(node)
+   emit_line_directive_if_needed(node)
+   case type(node.s) of {
+      "string":	{
+	 if node.s[1:3] === "``" then {
+	    node.s ? {
+	       if find(".") & find ("(") then {
+		  return emit_code_for_uneval("pattern_stringmethodcall")
+		  }
+	       else if find ("(") then {
+		  return emit_code_for_uneval("pattern_stringfunccall")
+		  }	
+	       else
+		  yyerror("`` must enclose function call", node)
+	       }	
+	    }
+	 else {
+	    node.s ? {
+	       if find(".") & find ("(") then {
+		  return emit_code_for_uneval("pattern_boolmethodcall")
+		  }
+	       else if find ("(") then {
+		  return emit_code_for_uneval("pattern_boolfunccall")
+		  }	
+	       else if find(".") then {
+		  return emit_code_for_uneval("pattern_unevalvar")
+		  }
+	       else {
+		  tab(upto(&letters++'_'))
+		  temp := tab(many(&letters++'_'++&digits))
+		  # emit (x,pattern_unevalvar("x")) so that var x is declared
+		  writes(yyout,"(",temp,",pattern_unevalvar( ")
+		  writes(yyout, "\"", temp, "\"")
+		  writes(yyout, "))")
+		  return
+		  }	
+	       }
+	    }
+	 }	
+      default :
+	 write("Error string expected but got  ", type(node))
+      }
+end
+
+#
+# Emit code for an in-pattern assignment. This needs an explanation.
+# If there is a field, emit as ["variablename", "fieldname"]
+#
+procedure emit_assign_code(node)
+   case type(node) of {
+      "treenode": {
+	 if node.label == "BPuneval" then {
+	    node := node.children[1]
+	    if type(node) == "token" & node.s[1]==node.s[-1]=="`" then {
+		  yyprint("\"" || node.s[2:-1] || "\"")
+		  }
+	    return
+	    }
+	 if node.label ~== "field" then {
+	    yyerror("In-pattern assignment must be to field, not a " ||
+		    image(node.label))
+	    return
+	    }
+	 if type(node.children[1]) ~== "token" then {
+	    yyerror("Multiple references not supported")
+	    return
+	    }
+	 writes(yyout,"[",node.children[1].s,",\"",
+		node.children[3].s,"\"]")
+	 return
+	 }
+      "token": {
+	 node.s ? {
+	    rec := tab(upto('.'))
+	    if \rec then &pos +:= 1; # jump over the .
+	    var := tab(0)
+
+	    # In order to print out with correct newline if needed,
+	    # create a fake token with var as a string name. Might
+	    # need to apply this technique to the treenode cases above.
+	    faketok := copy(node)
+	    faketok.tok := STRINGLIT
+	    faketok.s := "\"" || var || "\""	    
+
+	    if \rec then {
+	       writes(yyout,"[",rec,",")
+	       yyprint(faketok)
+	       writes(yyout,"]")
+	       }
+	    else yyprint(faketok)
+	    }
+	 }
+      }
+end
+
+procedure yyprint(node)
+   static lasttok
+   local inode
+   repeat			# allows us to suppress tail recursion
+   case type(node) of {
+      "treenode" : {
+	 if node.label == "package" then {
+	    # noop
+	    fail
+	    }
+	 else if node.label == "import" then {
+	    yyprint("\n")
+	    print_imports(node.children[2])
+
+	    inode := node.children[1]
+	    if (outfilename ~== (inode.filename))|(outline > inode.line) then {
+	       write(yyout,"\n#line ", inode.line-1," \"", inode.filename,"\"")
+	       outline := inode.line
+	       outcol := 1
+	       outfilename := inode.filename
+	       }
+	    else while outline < inode.line do {
+	       write(yyout); outline +:= 1; outcol := 1
+	       }
+
+	    fail
+	    }
+         else if node.label == "packageref" then {
+	     if *node.children = 2 then
+		 yyprint(node.children[2]) # ::ident
+	     else { # ident :: ident
+		yyprint(node.children[1])
+		writes(yyout, "__")
+	        outcol +:= ((* writes(yyout, node.children[3].s)) + 2)
+		}
+	     fail
+	 }
+         else if node.label == "global" then {
+	    yyprint(node.children[1])
+	    node := node.children[2]
+	    next
+	    }
+         else if node.label == "BPand" then {
+	    iconc_fd := 1	    
+            writes(yyout, " pattern_concat( ")
+	    yyprint(node.children[1])
+	    writes(yyout, ",")
+	    yyprint(node.children[3])
+	    writes(yyout, " ) ")
+            fail
+	    }	
+         else if node.label == "BPor" then {
+	    iconc_fd := 1	    
+	    writes(yyout, " pattern_alternate( ")
+	    yyprint(node.children[1])
+	    writes(yyout, ",")
+	    yyprint(node.children[3])
+	    writes(yyout, " ) ")		
+            fail
+	    }	
+         else if node.label == "BPmatch" then {
+	    iconc_fd := 1	    
+	    writes(yyout, "( \"\" ? pattern_match(")
+	    yyprint(node.children[1])
+	    writes(yyout, ",")
+	    yyprint(node.children[3])
+	    writes(yyout, ")) ")
+            fail
+	    }	
+         else if node.label == "BPiam" then {
+	    iconc_fd := 1	    
+	    if iconc===1 then {
+	       writes(yyout, "(if getenv(\"NONSENSE\") then ")
+	       yyprint(node.children[3])
+	       writes(yyout," := \"\" else ")
+	       }
+	    writes(yyout, " pattern_assign_immediate( ")
+	    yyprint(node.children[1])
+	    writes(yyout, ",")
+	    emit_assign_code(node.children[3])
+	    # generate spurious extra parameter so that the variable is
+	    # guaranteed to be declared: pattern_assign_immediate(p,"var",var)
+	    writes(yyout, ",")
+	    yyprint(node.children[3])
+	    writes(yyout, " ) ")		
+	    if iconc===1 then writes(yyout, ")")
+            fail
+	    }	
+         else if node.label == "BPaom" then {
+	    iconc_fd := 1	    
+	    if iconc===1 then {
+	       writes(yyout, "(if getenv(\"NONSENSE\") then ")
+	       yyprint(node.children[3])
+	       writes(yyout," := \"\" else ")
+	       }
+	    writes(yyout, " pattern_assign_onmatch( ")
+	    yyprint(node.children[1])
+	    writes(yyout, ",")
+	    emit_assign_code(node.children[3])
+	    # generate spurious extra parameter so that the variable is
+	    # guaranteed to be declared: pattern_setcur("var",var)
+	    writes(yyout, ",")
+	    yyprint(node.children[3])
+	    writes(yyout, " ) ")		
+	    if iconc===1 then writes(yyout, ")")
+            fail
+	    }	
+         else if node.label == "upsetcur" then {
+	    iconc_fd := 1	    
+	    if iconc===1 then {
+	       writes(yyout, "(if getenv(\"NONSENSE\") then ")
+	       yyprint(node.children[2])
+	       writes(yyout," := 1 else ")
+	       }
+
+	    writes(yyout, "pattern_setcur( ")
+	    emit_assign_code(node.children[2])
+	    # generate spurious extra parameter so that the variable is
+	    # guaranteed to be declared: pattern_setcur("var",var)
+	    writes(yyout, ",")
+	    yyprint(node.children[2])
+	    writes(yyout, " ) ")
+	    if iconc===1 then writes(yyout,")")
+            fail
+	    }	
+         else if node.label == "BPuneval" then {
+	    iconc_fd := 1	    
+	    process_uneval(node.children[1])
+	    fail
+            }	
+	 else if node.label == ("varlist2"|"stalist2") then {
+	    yyprint(node.children[1])
+	    fail
+	    }
+	 else if node.label == ("varlist4"|"stalist4") then {
+	    yyprint(node.children[1])
+	    yyprint(node.children[2])
+	    node := node.children[3]
+	    next
+	    }
+	 else if node.label == "proc" then {
+	    yyprint(node.children[1])
+	    every yyprint(node.children[2 to 3])
+	    if exists_statlists(node.children[3]) then {
+	       ini := node.children[4]
+	       yyprint("\ninitial {")
+               if ini ~=== EmptyNode then { # append into existing initial
+		  yyprint(ini.children[2])
+		  yyprint(";\n")
+	          }
+	       yystalists(node.children[3])
+	       yyprint("\n}\n")
+	       }
+	    else
+	       every yyprint(node.children[4])
+	    (node.children[1].fields).coercions()
+            yyvarlists(node.children[3])
+	    yyprint(node.children[5])
+	    yyprint(node.children[6])
+	    fail
+	    }
+	 else if node.label == "critical" then {
+	 while outline < node.children[1].line do {
+	    write(yyout); outline +:= 1; outcol := 1
+	    }
+	 while outcol < node.children[1].column do {
+	    writes(yyout, " "); outcol +:= 1
+	    }
+	    yyprint("{ lock(")
+	    yyprint(node.children[2])
+	    yyprint("); ")
+	    yyprint(node.children[4])
+	    yyprint("; unlock(")
+	    yyprint(node.children[2])
+	    yyprint(") } ")
+	    fail
+	    }
+	 else if *node.children > 0 then {
+            every yyprint(node.children[1 to *node.children-1])
+	    node := node.children[-1]
+	    next
+	    }
+	 else if node.label === "error" then fail
+	 else { write("leaf, ", node.label); fail }
+	    }
+      "integer": {
+	 writes(yyout, node); outcol +:= *string(node)
+	 fail
+	 }
+      "string": {
+         node ? {
+	    while writes(yyout, tab(find("\n")+1)) do {
+	       outline+:=1; outcol:=1;
+	       }
+	    node := tab(0)
+	    }
+	 writes(yyout, node); outcol +:= *node
+	 fail
+         }
+      "token": {
+	 if \outfilename ~== \ (node.filename) |
+	     (outline > node.line) then {
+	    write(yyout,"\n#line ", node.line-1," \"", node.filename,"\"")
+	    outline := node.line
+	    outcol := 1
+	    outfilename := node.filename
+	    }
+
+	 while outline < node.line do {
+	    write(yyout); outline +:= 1; outcol := 1
+	    }
+	 if outcol >= node.column then {
+            # force space between idents and reserved words, and other
+            # deadly combinations (need to add some more)
+            if ((\lasttok).tok = (IDENT|INTLIT|REALLIT) & reswords[node.s][2]~=IDENT)|
+		(((\lasttok).tok = NMLT) & (node.tok = MINUS)) |
+		((\lasttok).tok = node.tok = PLUS) |
+		((\lasttok).tok = node.tok = MINUS) |
+		((reswords[(\lasttok).s][2]~=IDENT) & (node.tok=(IDENT|INTLIT|REALLIT)))|
+	        ((reswords[(\lasttok).s][2]~=IDENT) & (reswords[node.s][2]~=IDENT))
+		   then
+	       writes(yyout, " ")
+	    }
+	 else
+	    while outcol < node.column do { writes(yyout, " "); outcol +:= 1 }
+
+	 writes(yyout, node.s)
+	 outcol +:= *node.s
+	 lasttok := node
+	 fail
+	 }
+      "null": { fail }
+      "declaration__state": {
+	 node.Write(yyout)
+	 fail
+	 }
+      "Class__state": {
+	 node.Write(yyout)
+	 fail
+	 }
+      "argList__state": {
+	 node.Write(yyout)
+	 fail
+	 }
+      default: { write("its a ", type(node)); fail }
+      }
+end
+
+procedure print_imports(node)
+   # used to be lnklist, separated/renamed implist
+   if type(node)=="treenode" & node.label==("implist"|"lnklist") then {
+      print_imports(node.children[1])
+      print_imports(node.children[3])
+      }
+   else if node.tok = (IDENT|STRINGLIT) then {
+      tempp := Package(node.s)
+      every fn := (\tempp.files).foreach() do {
+	 if map(fn)[-4:0]==".icn" then fn[-4:0] := ""
+	 writelink(tempp.dir, fn)
+	 outcol := 1
+	 }
+      }
+end
+
+#
+# This method takes a symbol (a string) and "mangles" it according to which
+# imported package it belongs to, or whether it belongs to the local package.
+#
+procedure mangle_sym(sym)
+   initial {
+      if \yydbg then {
+         dbg := 1
+         write("imported syms:---")
+         every x := !sort(imported) do {
+            s := "["
+            every s ||:= !x[2] || ","
+            s[-1] := "]"
+            write(x[1],"->",s)
+         }
+         write("------")
+      }
+   }
+                               
+   #
+   # First check if it is in the package-level symbols defined in this file.
+   # These override any imports.
+   #
+   if member(package_level_syms, sym) then
+      return package_mangled_symbol(sym)
+
+   if member(imported, sym) then {
+      l := imported[sym]
+      if *l > 1 then {
+$ifdef Uniconc
+         every i := 2 to *l do
+         if not (l[1] == l[i]) then {
+$endif # Uniconc
+            s := sym || " is imported from several packages: ("
+            every s ||:= !l || ","
+            s[-1]:=") Use the :: operator to specify which package is intended."
+            yyerror(s)
+            return sym
+$ifdef Uniconc
+            }
+$endif # Uniconc
+         }
+      return l[1] || "__" || sym
+   }
+
+   return sym
+end
+
+#
+# This method is the same as above, but just operates on class symbols,
+# as opposed to general symbols.
+#
+procedure mangle_class_sym(sym)
+   initial {
+      if \yydbg then {
+         dbg := 1
+         write("imported class syms:---")
+         every x := !sort(imported_classes) do {
+            s := "["
+            every s ||:= !x[2] || ","
+            s[-1] := "]"
+            write(x[1],"->",s)
+         }
+         write("------")
+      }
+   }
+
+   #
+   # First check if it is in the classes defined in this file.  These
+   # override any imports.
+   #
+   if member(\package_level_class_syms, sym) then
+      return package_mangled_symbol(sym)
+
+   if member(\imported_classes, sym) then {
+      l := imported_classes[sym]
+      if *l > 1 then {
+$ifdef Uniconc
+         # mdw
+         every i := 2 to *l do {
+            if not (l[1] == l[i]) then {
+$endif # Uniconc
+               s := sym || " is imported from several packages: ("
+               every s ||:= !l || ","
+               s[-1]:=") Use the :: operator to specify which package is intended."
+               yyerror(s)
+               return sym
+$ifdef Uniconc
+               }
+            }
+$endif # Uniconc
+         }
+      return l[1] || "__" || sym
+   }
+
+   return sym
+end
+
+#
+# This function is called to setup the package_level_syms variable.
+# This is a set of the package-level symbols defined in this file, ie
+# class names, global variables, record names and procedure names.  It
+# is called immediately after parsing has completed.  As it comes
+# across the symbols it must add, they are mangled. 
+#
+procedure set_package_level_syms(node)
+   local n
+   case type(node) of {
+      "treenode": {
+         case node.label of {
+            "decls" : {
+               every set_package_level_syms(node.children[1 | 2])
+            }
+
+            "global" : {
+               n := node.children[2]
+               repeat {
+                  if type(n) == "token" then {
+                     ident_into_package_level_syms(n)
+                     return
+                  } 
+                  ident_into_package_level_syms(n.children[3])
+                  n := n.children[1]
+               }
+            }
+
+            "proc" : {
+               ident_into_package_level_syms(node.children[1].name)
+            }
+
+         }
+      }
+      "declaration__state": {  # record declaration
+         ident_into_package_level_syms(node.name)
+      }
+      "Class__state": {
+         insert(package_level_syms, node.unmangled_name)
+         insert(package_level_class_syms, node.unmangled_name)
+         #
+         # Process the inner records/globals; these are just
+         # treated as top-level declarations.
+         #
+         every set_package_level_syms(!(\node.glob))
+      }
+   }
+
+end
+
+#
+# Helper function to add the symbol to the set, and mangle it.
+#
+procedure ident_into_package_level_syms(node)
+   insert(package_level_syms, node.s)
+   node.s := package_mangled_symbol(node.s)
+end
+
+#
+# Mangle a symbol according to the package the current file is in (if any).
+#
+procedure package_mangled_symbol(symbol)
+   if /thePackage then
+      return symbol
+   else
+      return thePackage.name || "__" || symbol
+end
+
+#
+# Mangle a packageref node, ie an explicit package reference in
+# the form a::b or ::b
+#
+procedure mangle_explicit_packageref(node)
+   if *node.children = 2 then
+      return node.children[2].s
+   else
+      return node.children[1].s || "__" || node.children[3].s
+end
+
+# This function scope-checks the superclass names of the class declarations
+# in this file.  Any symbols which refer to packages are mangled
+# appropriately. This stage takes place after the package_level_syms set
+# has been set up, but before the class definitions have had their fields
+# and methods resolved.
+#
+# As an example a class declaration
+# class A : X : Y : Z()
+# might be transformed to
+# class A : pack1__X : pack2__Y : pack2__Z()
+#
+#
+procedure scopecheck_superclass_decs(node)
+   every scopecheck_superclass_dec(classes.foreach_t())
+end
+
+#
+# Perform the superclass declaration scope-check for the class c.
+#
+procedure scopecheck_superclass_dec(c)
+   local tmp, x
+
+   tmp := idTaque(":")
+   x := c.supers_node
+   while x ~=== EmptyNode do {
+      sc := x.children[2]
+
+      if type(sc) == "token" then
+         # Simple reference, so use mangle_class_sym (it must be a class)
+         tmp.Put(mangle_class_sym(sc.s))
+      else
+         # Explicit packageref, eg a::b
+         tmp.Put(mangle_explicit_packageref(sc))
+
+      x := x.children[3]
+   }
+
+   c.supers := tmp
+end
+
+#
+# This function is called at the end of the translation process, to mangle
+# any symbols in the procedure and method bodies.  For each body, it is
+# necessary to construct a set of the parameters, local variables and
+# static variables which should NOT be mangled.  For methods, the class
+# methods and variables must also be omitted.
+#
+procedure scopecheck_bodies(node)
+   case type(node) of {
+      "treenode": {
+         case node.label of {
+            "decls" : {
+               every scopecheck_bodies(node.children[1 | 2])
+            }
+
+            "proc" : {
+               scopecheck_proc(node)
+            }
+         }
+      }
+      "Class__state": {
+         scopecheck_methods(node)
+      }
+   }
+end
+
+#
+# Scope-check a single procedure definition.
+#
+procedure scopecheck_proc(node)
+   local local_vars, n
+
+   # Build local_vars from the params and local var expressions.
+   local_vars := set()
+   extract_identifiers(node.children[1].fields, local_vars)
+   extract_identifiers(node.children[3], local_vars)
+
+   # The expression in the intially section (if any)
+   if node.children[4] ~=== EmptyNode then
+      scopecheck_expr(node.children[4].children[2], local_vars)
+
+   # The procbody expressions
+   scopecheck_procbody(node.children[5], local_vars)
+end
+
+#
+# Scope-check the methods in class c
+#
+procedure scopecheck_methods(c)
+   local self_vars
+   self_vars := set()
+
+   every insert(self_vars, c.foreachmethod().name)
+   every insert(self_vars, c.foreachfield())
+   every insert(self_vars, (!\ (c.ifields)).ident)
+   every insert(self_vars, (!\ (c.imethods)).ident)
+
+   every m := c.foreachmethod() do {
+      local_vars := set()
+      extract_identifiers(m.fields, local_vars)
+      extract_identifiers(m.locals, local_vars)
+
+      # The expression in the intially section (if any)
+      if m.initl ~=== EmptyNode then
+         scopecheck_expr(m.initl.children[2], local_vars, self_vars)
+      scopecheck_locals(m.locals, local_vars, self_vars)
+      scopecheck_procbody(m.procbody, local_vars, self_vars)
+   }
+
+end
+
+procedure scopecheck_locals(n, localvars, selfvars)
+   if /n then fail
+   if type(n) == "treenode" then {
+      case n.label of {
+	 "locals2": { # locals LOCAL varlist
+	    scopecheck_locals(n.children[1], localvars, selfvars)
+	    scopecheck_locals(n.children[3], localvars, selfvars)
+	    }
+	 "locals3": { # locals STATIC varlist
+	    scopecheck_locals(n.children[1], localvars, selfvars)
+	    # need different rules for static initializers, if we
+	    # ever decide to allow them
+	    # scopecheck_locals(n.children[3], localvars, selfvars)
+	    }
+	 "varlist2": {
+	    scopecheck_expr(n.children[3], localvars, selfvars)
+	    }
+	 "varlist3": {
+	    scopecheck_locals(n.children[1], localvars, selfvars)
+	    }
+	 "varlist4": {
+	    scopecheck_locals(n.children[1], localvars, selfvars)
+	    scopecheck_expr(n.children[5], localvars, selfvars)
+	    }
+	 }
+      }
+   else if type(n) ~== "token" then
+      stop("locals ", image(n), " is not a treenode or a token")
+end
+
+#
+# Scope-check a procbody parse node.
+#
+procedure scopecheck_procbody(n, local_vars, self_vars)
+   while n ~=== EmptyNode do {
+      scopecheck_expr(n.children[1], local_vars, self_vars)
+      n := n.children[3]
+      }
+end
+
+#
+# Scope-check an expression.
+#
+procedure scopecheck_expr(node, local_vars, self_vars)
+
+   case type(node) of {
+      "treenode": {
+         if node.label == ("keyword" | "packageref") then
+            fail
+         else if node.label == "field" then {
+            scopecheck_field(node, local_vars, self_vars)
+	    }
+	 else if node.label == ("swap"|"assign"|"revswap"|"revasgn"|
+				  "augcat"|"auglcat"|"Bdiffa"|"Buniona"|
+				  "Bplusa"|"Bminusa"|"Bstara"|"Bintera"|
+				  "Bslasha"|"Bmoda"|"Bcareta"|"Baugeq"|
+				  "Baugeqv"|"Baugge"|"Bauggt"|"Baugle"|
+				  "Bauglt"|"Baugne"|"Baugneqv"|"Baugseq"|
+				  "Baugsge"|"Baugsgt"|"Baugsle"|"Baugslt"|
+				  "Baugsne"|"Baugques"|"Baugamper"|"Baugact"|"BPand") then {
+            every scopecheck_expr(!node.children, local_vars, self_vars)
+	    ckfnasgn(node.children[1], local_vars, self_vars)
+         } else
+            every scopecheck_expr(!node.children, local_vars, self_vars)
+      }
+      "token": {
+         if node.tok = IDENT then {
+            if not member(\local_vars, node.s) then {
+               if classfield_member(\self_vars, node.s) then
+                  node.s := "self." || node.s
+               else 
+                  node.s := mangle_sym(node.s)
+            }
+         }
+      }
+   }
+end
+
+#
+# A member() function, modified to allow that the fields set could hold
+# some "arg3" tree nodes with initializers, instead of just string names.
+# It would be better to catch this at the insertion point some day.
+#
+procedure classfield_member(fields, s)
+    if member(fields, s) then return
+    if (x:=!fields) & type(x)=="treenode" &
+	x.label=="arg3" & x.children[1].s==s then {
+	return
+    }
+end
+
+procedure scopecheck_field(node, local_vars, self_vars)
+   while type(node) == "treenode" & node.label === "field" do {
+      lhs := node.children[1]
+      rhs := node.children[3]
+
+      if type(rhs) == "token" then {
+         if type(lhs) == "token" & lhs.s === "self" then {
+            #
+            # A special case; the rhs of a self.<tok> expression; the token
+	    # should be mangled if it is not in self_vars; it could be in
+	    # the form self.super.tok; 'super' must be mangled.
+            #
+            if not member(\self_vars, rhs.s) then
+               rhs.s := mangle_class_sym(rhs.s)
+         } else
+            rhs.s := mangle_class_sym(rhs.s)
+      }
+
+      node := lhs
+   }
+   
+   scopecheck_expr(node, local_vars, self_vars)
+end
+
+#
+# Helper function to extract the identifiers from a treenode; used to
+# conveniently get the identifiers from a list of local variables
+# for example.
+#
+procedure extract_identifiers(node, res)
+   /res := set()
+   case type(node) of {
+      "treenode": {
+         if node.label == ("arg2"|"arg3"|"arg4" | "stalist2" | "varlist2") then
+            extract_identifiers(node.children[1], res)
+         else if node.label == ("varlist4" | "stalist4") then {
+            extract_identifiers(node.children[1], res)
+            extract_identifiers(node.children[3], res)
+	    }
+         else
+            every extract_identifiers(!node.children, res)
+      }
+      "token": {
+         if node.tok = IDENT then
+            insert(res, node.s)
+      }
+      "argList__state" : {
+         # The list node.l is either null, or a mixture of strings and nodes.
+         every el := !(\node.l) do {
+            if type(el) == "string" then
+               insert(res, el)
+            else
+               extract_identifiers(el, res)
+         }
+      }
+   }
+   return res
+end
+
+procedure iconc_prep_parse_tree(parent, child)
+   local i, t, o, m, s, el
+   local todo, tmplist, newnode
+
+   todo := list()
+   put(todo, parent)
+   put(todo, child)
+   while *todo > 0 do {
+      parent := pop(todo)
+      child := pop(todo)
+      case type(child) of {
+         "treenode": {
+            if child.label == ("link" | "import" |"lnklist"|"implist") then {
+               every i := 1 to *child.children do {
+                  if not (type(child.children[i]) == "token") then
+                     next
+                  if child.children[i].s == ("link"|"import"|",") then {
+                     child.children[i].s := ""
+                     next
+                     }
+                  if child.label == ("link" | "lnklist") then {
+                     iconc_links[child.children[i].s] := yyfilename
+                     ca_add_link(yyfilename, child.children[i].s)
+                     }
+                  else {
+                     iconc_imports[child.children[i].s] := yyfilename
+                     ca_add_import(yyfilename, child.children[i].s)
+                     }
+                  child.children[i].s := ""
+                  }
+               }
+            if child.label == "package" then {
+               #
+               # eliminate package decls
+               #
+               child.children[1].s := ""
+               ca_add_pkg(yyfilename, child.children[2].s)
+               child.children[2].s := ""
+               }
+            if *child.children > 0 then {
+               tmplist := list()
+               every i := 1 to *child.children do {
+                  put(tmplist, child)
+                  put(tmplist, child.children[i])
+                  }
+               todo := tmplist ||| todo
+               }
+            }
+         "argList__state": {
+            tmplist := list()
+            every el := !(\child.l) do {
+               put(tmplist, child)
+               put(tmplist, el)
+               }
+            todo := tmplist ||| todo
+            }
+         "Class__state": {
+            tmplist := list()
+#            ca_add_method(yyfilename, child.name, "ctor") # constructor
+            ca_add_class(yyfilename, child)
+            every m := child.foreachmethod() do {
+               ca_add_method(yyfilename, m)
+               put(tmplist, child)
+               put(tmplist, m.procbody)
+               }
+            todo := tmplist ||| todo
+            }
+         }
+      }
+end
+
+#
+# Useful debug function to recursively print a treenode.
+#
+procedure print_node(node, childindex, indent)
+   /indent := 0
+   /childindex := " "
+   s := repl(" ", indent*3) || childindex || " "
+
+   case type(node) of {
+      "treenode" : {
+         write(s, "treenode - label=", node.label)
+         every i := 1 to *node.children do
+            print_node(node.children[i], i, indent+1)
+      }
+      "integer"|
+      "string": {  write(s, type(node), ": ", image(node)) }
+      "token": {   write(s, "token(", node.tok, "): ", image(node.s)) }
+      "null"|
+      "declaration__state"|
+      "argList__state": { write(s, image(node)) }
+      "Class__state": { write(s, "class: ", image(node)) }
+      default: write("its a ", type(node))
+   }
+end
+
+#
+# check whether x is the name of a function that is accidentally being
+# assigned.  if it is, issue a warning unless a flag has been set.
+#
+procedure ckfnasgn(x, locals, selfs)
+   if type(x)=="token" & proc(x.s, 0) &
+       (not member(\locals,x.s)) & (not member(\selfs,x.s)) then {
+      warning("Warning: assignment to built-in function "|| x.s,
+              x.line, x.filename)
+      }
+   return x
+end
+
+#
+# Check whether x is a constant expression. At present, this is a very
+# preliminary placeholder for subsequent constant folding optimization.
+# In order for this to have any effect, Someone has to modify the parse
+# tree to fold the constant.
+#
+procedure node_isconst(n)
+   if type(n)=="token" then {
+       if token_isconst(n) then {
+	   # token is a constant whose value is get_constantvalue(n)
+	   return token_isconst(n)
+       }
+   }
+   else if type(n) == "treenode" then {
+       case n.label of {
+	   "keyword": {
+	       if n.children[2].s ==
+		   ("digits","e","lcase","letters","pi","ucase") then {
+		  # constant keywords; list appears incomplete?
+		  return "const"
+		  }
+	   }
+	   "Bplus" | "Bdiff" | "Bunion" | "Bminus" | "Bstar" : {
+	       if node_isconst(n.children[1]) then {
+		   if node_isconst(n.children[3]) then {
+		       # n is a constant with value get_constantvalue(n),
+		       # it should be folded.
+		       return "const"
+		   }
+	       }
+	       else { # whole expr is not const, but check subtree
+		   node_isconst(n.children[3])
+	       }
+	       
+	   }
+	   default: {
+	       # know nothing; check whole tree
+	       every i := 1 to *n.children do node_isconst(n.children[i])
+	   }
+       }
+   }
+end
+
+#
+# Placeholder for a constant evaluator; needs to add more treenode types
+#
+procedure get_constantvalue(n)
+   if type(n)=="token" then {
+       case n.tok of {
+	   INTLIT : return integer(n.s)
+	   REALLIT : return real(n.s)
+	   STRINGLIT : return string(n.s[2:-1])
+	   CSETLIT : return cset(n.s[2:-1])
+       }
+   }
+   else if type(n) == "treenode" then {
+       case n.label of {
+	   "Bstar" : {
+	       constval := get_constantvalue(n.children[1]) *
+		   get_constantvalue(n.children[3])
+	       
+	       return constval
+	   }
+       }
+   }
+end
+
+#
+# Placeholder for a constant folding optimization. Modify the parse tree
+# to hold the folded constants, so shorter/simpler code is generated.
+#
+procedure constant_folder(n)
+    if n.label == "Bstar" then {
+    }
+end
+
+# build a parse tree for the pattern that matches this regexp
+procedure regexp(n)
+   case type(n) of {
+      "token": {
+	 case n.tok of {
+	    IDENT: {
+	       return "\"" || n.s || "\""
+	       }
+	    STRINGLIT | CSETLIT: {
+	       return n
+	       }
+	    DOT: {
+	       return "NotAny('\\n')"
+	       }
+	    default: {
+	       write(&errout, "unknown regex token ", image(n.tok))
+	       }
+	    }
+	 return "regexp"
+	 }
+      "treenode": {
+	 case n.label of {
+	    "kleene": {
+	       # arbno child[1], but recognize *'s precedence
+	       case type(n.children[1]) of {
+		  "token": {
+		     case n.children[1].tok of {
+			IDENT: {
+			   if *n.children[1].s > 1 then {
+			      return "(\"" || n.children[1].s[1:-1] ||
+				      "\"||Arbno(\"" || n.children[1].s[-1]||
+				      "\"))"
+			      }
+			   else return "(Arbno(\"" || n.children[1].s|| "\"))"
+			   }
+			CSETLIT |
+			STRINGLIT: return "(Arbno(" || n.children[1].s|| "))"
+			default: {
+			   write("system error in regex, * operand ",
+				 (image(n.children[1].tok)|"no tok"))
+			   }
+			}
+		     }
+		  "treenode": {
+		     case n.children[1].label of {
+			"acset": {
+			   return "(Arbno(\'" || csetify(n.children[1]) || "\'))"
+			   }
+			"Paren": {
+			   return node("arbno", "Arbno(",regexp(n.children[1].children[2]),")")
+			   }
+			"regexconcat": { } # use default rule
+			default: { # cross fingers
+			   write("* operand label is ", n.children[1].label)
+			   }
+			}
+		     return node("arbno", "Arbno(",regexp(n.children[1]),")")
+		     }
+		  default: {
+		     write("system error in regex, * operand type ",
+			   (type(n.children[1])|"no child"))
+		     }
+		  }
+	       }
+	    "oneormore": {
+	       # + , but recognize +'s precedence
+	       case type(n.children[1]) of {
+		  "token": {
+		     case n.children[1].tok of {
+			IDENT: {
+			   if *n.children[1].s > 1 then {
+			      return "(\"" || n.children[1].s || "\"||" ||
+				      "Arbno(\"" || n.children[1].s[-1]||"\"))"
+			      }
+			   }
+			STRINGLIT: {
+			   return "(" || n.children[1].s ||
+				" || Arbno(" || n.children[1].s ||  "))"
+			   }
+			}
+		     }
+		  default: {
+		     nclone := copy(n)
+		     nclone.label := "kleene"
+		     return node("concat", "((", regexp(n.children[1]),")||(",
+				 regexp(nclone), "))")
+		     }
+		  }
+	       }
+	    "optional": {
+	       # ?, but recognize ?'s precedence
+	       case type(n.children[1]) of {
+		  "token": {
+		     case n.children[1].tok of {
+			IDENT: {
+			   if *n.children[1].s > 1 then {
+			      return "(\"" || n.children[1].s[1:-1] ||
+				      "\"||pattern_alternate(\"" ||
+				      n.children[1].s[-1] || "\",\"\"))"
+			      }
+			   }
+			STRINGLIT: {
+			   # build a tree node with lexical information from
+			   # the string, but with the "or nothing" alternate
+                           newt := copy(n.children[1])
+			   newt.tok := LPAREN
+			   newt.s := "("
+			   return node("concat", newt,
+			     "pattern_alternate("|| n.children[1].s ||",\"\"))")
+			   }
+			default: runerr("regex error: surprise token " ||
+					image(n.children[1].s))
+			}
+		     }
+		  "treenode": {
+		     return node("alt", " pattern_alternate(",
+				 regexp(n.children[1]),", \"\")")
+		     }
+		  default: {
+		     runerr("regex error: operand to ? supported")
+		     }
+		  }
+	       }
+	    "regexconcat": {
+	       return node("concat", " pattern_concat(", regexp(n.children[1]),
+			   ", ", regexp(n.children[2]),")")
+	       }
+	    "regexbar": {
+	       return node("alt", " pattern_alternate(", regexp(n.children[1]),
+			   ",", regexp(n.children[3]),")")
+	       }
+	    "acset": {
+	       return node("cset", "Any('" || csetify(n) || "')")
+	       }
+	    "notany": {
+	       return node("cset", "NotAny('" || csetify(n) || "')")
+	       }
+	    "brackchars": {
+	       return csetify(n)
+	       }
+	    "Paren": {
+	       return regexp( n.children[2] )
+	       }
+	    # these have recursively regexp'ed their kids already. noops.
+	    "alt" | "concat" | "arbno" | "cset": {
+	       return n
+	       }
+	    default: {
+	       write("treenode label ", image(n.label))
+	       }
+	    }
+	 }
+      "string": return n
+      default: {
+	 write("type of regexp is ", type(n), " : ", image(n))
+	 return "regexp"
+	 }
+      }
+end
+
+# create a cset from a regex-style cset
+procedure csetify(n)
+   if type(n) ~== "treenode" then {
+      if type(n) == "token" then {
+	 case n.tok of {
+	    # The two cases handled, leave as a string in order to
+	    # preserve escapes. Calling code will append ' ' around it.
+	    IDENT: {
+	       return n.s
+	       }
+	    INTLIT: {
+	       return n.s
+	       }
+	    default: {
+	       runerr("csetify", n.tok)
+	       stop("csetify ", image(n.tok))
+	       }
+	    }
+	 }
+      stop("csetify ", type(n),"?")
+      }
+    case n.label of {
+       "brackchars": {
+	  write(type(n.children[1], " vs. ", n.children[3]))
+	  }
+       "acset": {
+	  n := n.children[2]
+	  }
+       "notany": {
+	  n := n.children[3]
+	  }
+       default: {
+	  stop("csetify ", image(n.label), " kids ", *n.children)
+	  }
+       }
+   if type(n) == "treenode" & n.label == "brackchars" then {
+      # only way you get this node is you are a range. What about two ranges?
+      cs1 := csetify(n.children[1]) | stop("can't csetify ",image(n.children[1]))
+      cs2 := csetify(n.children[3]) | stop("can't csetify ",image(n.children[3]))
+      lo1 := lastofcset(n.children[1]) |
+	 stop("can't lastofcset ", image(n.children[1]))
+      fo2 := firstofcset(n.children[3]) |
+	 stop("can't firstofcset ", image(n.children[3]))
+      csr := csetrange(lo1, fo2) |
+	 stop("can't csetrange ", image(lo1), " and ", image(fo2))
+      cs := cs1 ++ cs2 ++ csr
+      return cs
+      }
+   if type(n) == "token" then return csetify(n)
+   return n
+end
+
+procedure csetrange(char1,char2)
+   local rv
+   rv := ''
+   every i := ord(char1) to ord(char2) do {
+      rv ++:= char(i)
+      }
+   return rv
+end	 
+
+procedure firstofcset(c)
+   if type(c) == "token" & c.tok = IDENT then return c.s[1]
+   if type(c) == "token" & c.tok = INTLIT then return c.s[1]
+   if type(c) == "treenode" then return firstofcset(c.children[1])
+end
+
+procedure lastofcset(c)
+   if type(c) == "token" & c.tok = IDENT then return c.s[-1]
+   if type(c) == "token" & c.tok = INTLIT then return c.s[-1]
+   if type(c) == "treenode" then return lastofcset(c.children[-1])
+end
+
+# want to append t1 onto front of t2, creating new t2
+procedure splicein(t1, t2)
+   return node("procbody", t1, ";", t2)
+end
+
+procedure class_from_parts(head, clocals, methods, initiallysection)
+   local rv
+   rv := head
+
+   if clocals ~=== EmptyNode then {
+      if clocals.label == "locals3" then
+         yyerror("static class variables not yet implemented")
+      # splice in any class locals into the field list
+      classinitializers := rv.fields.traverse(clocals, "classlocal")
+      }
+   if initiallysection ~=== EmptyNode then
+      methods := node("methods", methods, initiallysection)
+   rv.methods := methodstaque(methods, rv)
+   if \ (ini := rv.methods.lookup("initially")) then {
+      if not (type(ini) == ("Method"|"Method__state")) then
+	 yyerror("unexpected initially situation on " || type(ini))
+      # splice in any class local initializers into initially procbody
+      if clocals ~=== EmptyNode then {
+	  ini.procbody := splicein(\classinitializers, ini.procbody)
+	  }
+      }
+   else {
+      if clocals ~=== EmptyNode then {
+	 write("what, no initially? but I have to stick these somewhere?")
+	 }
+      }
+   return rv
+end

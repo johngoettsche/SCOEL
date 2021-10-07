@@ -1,0 +1,571 @@
+version	U12.1.00
+uid	DAO.u1-1629998889-0
+record	DAO__state,4
+	0,__s
+	1,__m
+	2,file
+	3,filename
+record	DAO__methods,6
+	0,closeFile
+	1,readChars
+	2,readln
+	3,writeItm
+	4,writeln
+	5,initially
+impl	local
+global	11
+	0,000005,DAO_closeFile,1
+	1,000005,DAO_readChars,2
+	2,000005,DAO_readln,1
+	3,000005,DAO_writeItm,2
+	4,000005,DAO_writeln,2
+	5,000005,DAO_initially,4
+	6,000011,DAO__state,4
+	7,000011,DAO__methods,6
+	8,000001,DAO__oprec,0
+	9,000005,DAO,3
+	10,000005,DAOinitialize,0
+
+proc DAO_closeFile
+	local	0,001000,self
+	local	1,000000,close
+	declend
+	filen	DAO.icn
+	line	7
+	colm	11
+	synt	any
+	mark	L1
+	line	8
+	colm	17
+	synt	if
+	mark0
+	pnull
+	pnull
+	var	0
+	line	8
+	colm	25
+	synt	any
+	field	file
+	line	8
+	colm	20
+	synt	any
+	nonnull
+	unmark
+	var	1
+	pnull
+	var	0
+	line	8
+	colm	46
+	synt	any
+	field	file
+	line	8
+	colm	41
+	synt	any
+	invoke	1
+	line	8
+	colm	17
+	synt	endif
+	unmark
+lab L1
+	pnull
+	line	9
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO_readChars
+	local	0,001000,self
+	local	1,001000,n
+	local	2,000000,reads
+	declend
+	line	11
+	colm	11
+	synt	any
+	mark	L1
+	mark	L2
+	var	2
+	pnull
+	var	0
+	line	12
+	colm	34
+	synt	any
+	field	file
+	var	1
+	line	12
+	colm	29
+	synt	any
+	invoke	2
+	line	12
+	colm	17
+	synt	any
+	pret
+lab L2
+	synt	any
+	pfail
+	unmark
+lab L1
+	pnull
+	line	13
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO_readln
+	local	0,001000,self
+	local	1,000000,read
+	declend
+	line	15
+	colm	11
+	synt	any
+	mark	L1
+	mark	L2
+	var	1
+	pnull
+	var	0
+	line	16
+	colm	33
+	synt	any
+	field	file
+	line	16
+	colm	28
+	synt	any
+	invoke	1
+	line	16
+	colm	17
+	synt	any
+	pret
+lab L2
+	synt	any
+	pfail
+	unmark
+lab L1
+	pnull
+	line	17
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO_writeItm
+	local	0,001000,self
+	local	1,001000,txt
+	local	2,000000,writes
+	declend
+	line	19
+	colm	11
+	synt	any
+	mark	L1
+	var	2
+	pnull
+	var	0
+	line	20
+	colm	28
+	synt	any
+	field	file
+	var	1
+	line	20
+	colm	23
+	synt	any
+	invoke	2
+	unmark
+lab L1
+	pnull
+	line	21
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO_writeln
+	local	0,001000,self
+	local	1,001000,txt
+	local	2,000000,write
+	declend
+	line	23
+	colm	11
+	synt	any
+	mark	L1
+	var	2
+	pnull
+	var	0
+	line	24
+	colm	27
+	synt	any
+	field	file
+	var	1
+	line	24
+	colm	22
+	synt	any
+	invoke	2
+	unmark
+lab L1
+	pnull
+	line	25
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO_initially
+	local	0,001000,self
+	local	1,001000,fn
+	local	2,001000,typ
+	local	3,001000,postfix
+	local	4,000020,length
+	local	5,000000,write
+	local	6,000000,open
+	local	7,000000,stop
+	con	0,002000,1,0
+	declend
+	line	27
+	colm	11
+	synt	any
+	mark	L1
+	pnull
+	pnull
+	var	0
+	line	31
+	colm	13
+	synt	any
+	field	filename
+	var	1
+	line	31
+	colm	22
+	synt	any
+	asgn
+	unmark
+lab L1
+	mark	L2
+	pnull
+	var	4
+	pnull
+	var	3
+	line	32
+	colm	19
+	synt	any
+	size
+	line	32
+	colm	16
+	synt	any
+	asgn
+	unmark
+lab L2
+	mark	L3
+	var	5
+	var	3
+	line	33
+	colm	14
+	synt	any
+	invoke	1
+	unmark
+lab L3
+	mark	L4
+	var	5
+	pnull
+	pnull
+	var	0
+	line	34
+	colm	19
+	synt	any
+	field	filename
+	pnull
+	var	4
+	line	34
+	colm	29
+	synt	any
+	neg
+	int	0
+	line	34
+	colm	36
+	synt	any
+	synt	any
+	sect
+	line	34
+	colm	14
+	synt	any
+	invoke	1
+	unmark
+lab L4
+	mark	L5
+	line	35
+	colm	9
+	synt	if
+	mark0
+	pnull
+	pnull
+	var	0
+	line	35
+	colm	16
+	synt	any
+	field	filename
+	pnull
+	var	4
+	line	35
+	colm	26
+	synt	any
+	neg
+	int	0
+	line	35
+	colm	33
+	synt	any
+	synt	any
+	sect
+	pnull
+	var	3
+	line	35
+	colm	37
+	synt	any
+	tabmat
+	invoke	-1
+	unmark
+	pnull
+	pnull
+	var	0
+	line	35
+	colm	55
+	synt	any
+	field	filename
+	dup
+	var	3
+	line	35
+	colm	64
+	synt	any
+	cat
+	asgn
+	line	35
+	colm	9
+	synt	endif
+	unmark
+lab L5
+	mark	L6
+	pnull
+	pnull
+	var	0
+	line	36
+	colm	13
+	synt	any
+	field	file
+	mark	L7
+	var	6
+	pnull
+	var	0
+	line	36
+	colm	29
+	synt	any
+	field	filename
+	var	2
+	line	36
+	colm	24
+	synt	any
+	invoke	2
+	line	36
+	colm	43
+	synt	any
+	esusp
+	goto	L8
+lab L7
+	var	7
+	line	36
+	colm	49
+	synt	any
+	keywd	errortext
+	pnull
+	var	0
+	line	36
+	colm	64
+	synt	any
+	field	filename
+	line	36
+	colm	48
+	synt	any
+	invoke	2
+lab L8
+	line	36
+	colm	18
+	synt	any
+	asgn
+	unmark
+lab L6
+	mark	L9
+	mark	L10
+	pnull
+	line	37
+	colm	7
+	synt	any
+	pret
+lab L10
+	synt	any
+	pfail
+	unmark
+lab L9
+	pnull
+	line	38
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAO
+	local	0,001000,fn
+	local	1,001000,typ
+	local	2,001000,postfix
+	local	3,000020,self
+	local	4,000020,clone
+	local	5,000000,DAO__oprec
+	local	6,000000,DAOinitialize
+	local	7,000000,DAO__state
+	declend
+	filen	__faux.icn
+	line	5
+	colm	11
+	synt	any
+lab L1
+	init	L3
+	mark	L2
+	line	8
+	colm	3
+	synt	if
+	mark0
+	pnull
+	var	5
+	line	8
+	colm	6
+	synt	any
+	null
+	unmark
+	var	6
+	line	8
+	colm	36
+	synt	any
+	invoke	0
+	line	8
+	colm	3
+	synt	endif
+	unmark
+lab L2
+	einit	L1
+lab L3
+	mark	L4
+	pnull
+	var	3
+	var	7
+	line	10
+	colm	22
+	synt	any
+	keywd	null
+	var	5
+	line	10
+	colm	21
+	synt	any
+	invoke	2
+	line	10
+	colm	8
+	synt	any
+	asgn
+	unmark
+lab L4
+	mark	L5
+	pnull
+	pnull
+	var	3
+	line	11
+	colm	7
+	synt	any
+	field	__s
+	var	3
+	line	11
+	colm	12
+	synt	any
+	asgn
+	unmark
+lab L5
+	mark	L6
+	mark	L7
+	pnull
+	pnull
+	var	3
+	line	12
+	colm	7
+	synt	any
+	field	__m
+	line	12
+	colm	11
+	synt	any
+	field	initially
+	var	3
+	var	0
+	var	1
+	var	2
+	line	12
+	colm	21
+	synt	any
+	invoke	4
+	line	12
+	colm	43
+	synt	any
+	esusp
+	goto	L8
+lab L7
+	line	12
+	colm	45
+	synt	any
+	pfail
+lab L8
+	unmark
+lab L6
+	mark	L9
+	mark	L10
+	var	3
+	line	13
+	colm	3
+	synt	any
+	pret
+lab L10
+	synt	any
+	pfail
+	unmark
+lab L9
+	pnull
+	line	14
+	colm	1
+	synt	any
+	pfail
+	end
+proc DAOinitialize
+	local	0,000000,DAO__oprec
+	local	1,000000,DAO__methods
+	local	2,000000,DAO_closeFile
+	local	3,000000,DAO_readChars
+	local	4,000000,DAO_readln
+	local	5,000000,DAO_writeItm
+	local	6,000000,DAO_writeln
+	local	7,000000,DAO_initially
+	declend
+	line	16
+	colm	11
+	synt	any
+lab L1
+	init	L3
+	mark	L2
+	pnull
+	var	0
+	var	1
+	var	2
+	var	3
+	var	4
+	var	5
+	var	6
+	var	7
+	line	17
+	colm	37
+	synt	any
+	invoke	6
+	line	17
+	colm	22
+	synt	any
+	asgn
+	unmark
+lab L2
+	einit	L1
+lab L3
+	line	18
+	colm	1
+	synt	any
+	pfail
+	end

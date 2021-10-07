@@ -1,0 +1,14 @@
+This is Version 9.4.0 of the Icon Program Library, slightly modified
+for Unicon.
+
+For on-line documentation, see
+	http://www.cs.arizona.edu/icon/v940/library/ipl.htm
+
+Reusable library procedures are compiled during the Unicon install
+and stored in the lib/ subdirectory.  For example programs, you
+are on your own.  For packages, there is generally a Makefile.
+
+The MT-Icon portions of the library (the m* directories) are for
+use with miconx and the execution monitoring facilities; they
+are described in the book published by Springer, "Program
+Monitoring and Visualization: an Exploratory Approach".

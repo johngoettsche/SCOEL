@@ -1,0 +1,64 @@
+<NotepadPlus>
+    <UserLang name="Unicon" ext="icn" udlVersion="2.1">
+        <Settings>
+            <Global caseIgnored="no" allowFoldOfComments="yes" foldCompact="yes" forcePureLC="0" decimalSeparator="0" />
+            <Prefix Keywords1="no" Keywords2="no" Keywords3="no" Keywords4="no" Keywords5="no" Keywords6="no" Keywords7="no" Keywords8="no" />
+        </Settings>
+        <KeywordLists>
+            <Keywords name="Comments">00# 01 02` 03 04</Keywords>
+            <Keywords name="Numbers, prefix1"></Keywords>
+            <Keywords name="Numbers, prefix2"></Keywords>
+            <Keywords name="Numbers, extras1"></Keywords>
+            <Keywords name="Numbers, extras2"></Keywords>
+            <Keywords name="Numbers, suffix1"></Keywords>
+            <Keywords name="Numbers, suffix2"></Keywords>
+            <Keywords name="Numbers, range"></Keywords>
+            <Keywords name="Operators1">+ - * / % ^ @ ! $ :+ -: : :: , := &lt; &lt;&lt; &lt;= &lt;&lt;= &gt; &gt;&gt; &gt;= &gt;&gt;= +:= -:= *:= /:= %:= ^:= \ = == === ~= ~== ~=== | || ||:= ? ?:= &gt;:= &gt;=:= &lt;:= &lt;=:= -- ++ ** --:= ++:= **:= &amp; &amp;:= @&gt; @&gt;&gt; @&lt; @&lt;&lt; =&gt; -&gt; .$ ; ~ .</Keywords>
+            <Keywords name="Operators2"></Keywords>
+            <Keywords name="Folders in code1, open">fold</Keywords>
+            <Keywords name="Folders in code1, middle">midfold</Keywords>
+            <Keywords name="Folders in code1, close">endfold</Keywords>
+            <Keywords name="Folders in code2, open"></Keywords>
+            <Keywords name="Folders in code2, middle"></Keywords>
+            <Keywords name="Folders in code2, close"></Keywords>
+            <Keywords name="Folders in comment, open"></Keywords>
+            <Keywords name="Folders in comment, middle"></Keywords>
+            <Keywords name="Folders in comment, close"></Keywords>
+            <Keywords name="Keywords1">abstract&#x000D;&#x000A;global&#x000D;&#x000A;import&#x000D;&#x000A;invocable&#x000D;&#x000A;link&#x000D;&#x000A;local&#x000D;&#x000A;package&#x000D;&#x000A;record&#x000D;&#x000A;static&#x000D;&#x000A;thread&#x000D;&#x000A;procedure &#x000D;&#x000A;class&#x000D;&#x000A;initially&#x000D;&#x000A;method &#x000D;&#x000A;initial&#x000D;&#x000A;end&#x000D;&#x000A;</Keywords>
+            <Keywords name="Keywords2">return&#x000D;&#x000A;suspend&#x000D;&#x000A;</Keywords>
+            <Keywords name="Keywords3">break&#x000D;&#x000A;by&#x000D;&#x000A;case&#x000D;&#x000A;create&#x000D;&#x000A;critical&#x000D;&#x000A;default&#x000D;&#x000A;do&#x000D;&#x000A;else&#x000D;&#x000A;every&#x000D;&#x000A;fail&#x000D;&#x000A;if&#x000D;&#x000A;initial&#x000D;&#x000A;next&#x000D;&#x000A;not&#x000D;&#x000A;of&#x000D;&#x000A;repeat&#x000D;&#x000A;then&#x000D;&#x000A;to&#x000D;&#x000A;until&#x000D;&#x000A;while&#x000D;&#x000A;write</Keywords>
+            <Keywords name="Keywords4">abstract&#x000D;&#x000A;global&#x000D;&#x000A;import&#x000D;&#x000A;invocable&#x000D;&#x000A;link&#x000D;&#x000A;local&#x000D;&#x000A;package&#x000D;&#x000A;record&#x000D;&#x000A;static&#x000D;&#x000A;thread&#x000D;&#x000A;procedure &#x000D;&#x000A;class&#x000D;&#x000A;initially&#x000D;&#x000A;method &#x000D;&#x000A;initial&#x000D;&#x000A;end</Keywords>
+            <Keywords name="Keywords5">&amp;allocated&#x000D;&#x000A;&amp;ascii&#x000D;&#x000A;&amp;clock&#x000D;&#x000A;&amp;collections&#x000D;&#x000A;&amp;column&#x000D;&#x000A;&amp;cset&#x000D;&#x000A;&amp;current&#x000D;&#x000A;&amp;date&#x000D;&#x000A;&amp;dateline&#x000D;&#x000A;&amp;digits&#x000D;&#x000A;&amp;dump&#x000D;&#x000A;&amp;e&#x000D;&#x000A;&amp;errno&#x000D;&#x000A;&amp;error&#x000D;&#x000A;&amp;errornumber&#x000D;&#x000A;&amp;errorvalue&#x000D;&#x000A;&amp;errout&#x000D;&#x000A;&amp;eventcode&#x000D;&#x000A;&amp;eventsource&#x000D;&#x000A;&amp;eventvalue&#x000D;&#x000A;&amp;fail&#x000D;&#x000A;&amp;features&#x000D;&#x000A;&amp;file&#x000D;&#x000A;&amp;host&#x000D;&#x000A;&amp;input&#x000D;&#x000A;&amp;lcase&#x000D;&#x000A;&amp;letters&#x000D;&#x000A;&amp;level&#x000D;&#x000A;&amp;line&#x000D;&#x000A;&amp;main&#x000D;&#x000A;&amp;now&#x000D;&#x000A;&amp;null&#x000D;&#x000A;&amp;output&#x000D;&#x000A;&amp;phi&#x000D;&#x000A;&amp;pos&#x000D;&#x000A;&amp;progname&#x000D;&#x000A;&amp;random&#x000D;&#x000A;&amp;regions&#x000D;&#x000A;&amp;source&#x000D;&#x000A;&amp;subject&#x000D;&#x000A;&amp;time&#x000D;&#x000A;&amp;trace&#x000D;&#x000A;&amp;ucase&#x000D;&#x000A;&amp;version</Keywords>
+            <Keywords name="Keywords6">&amp;col&#x000D;&#x000A;&amp;control&#x000D;&#x000A;&amp;interval&#x000D;&#x000A;&amp;ldrag&#x000D;&#x000A;&amp;lpress&#x000D;&#x000A;&amp;lrelease&#x000D;&#x000A;&amp;mdrag&#x000D;&#x000A;&amp;meta&#x000D;&#x000A;&amp;mpress&#x000D;&#x000A;&amp;mrelease&#x000D;&#x000A;&amp;pick&#x000D;&#x000A;&amp;rdrag&#x000D;&#x000A;&amp;resize&#x000D;&#x000A;&amp;row&#x000D;&#x000A;&amp;rpress&#x000D;&#x000A;&amp;rrelease&#x000D;&#x000A;&amp;shift&#x000D;&#x000A;&amp;window&#x000D;&#x000A;&amp;x&#x000D;&#x000A;&amp;y</Keywords>
+            <Keywords name="Keywords7">$define&#x000D;&#x000A;$else&#x000D;&#x000A;$endif&#x000D;&#x000A;$ifdef&#x000D;&#x000A;$include</Keywords>
+            <Keywords name="Keywords8"></Keywords>
+            <Keywords name="Delimiters">00&quot; 01\ 02&quot; 03&apos; 04\ 05&apos; 06( 06{ 06[ 07 08) 08} 08] 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23</Keywords>
+        </KeywordLists>
+        <Styles>
+            <WordsStyle name="DEFAULT" fgColor="000000" bgColor="FFFFFF" fontName="Courier New" fontStyle="0" fontSize="10" nesting="0" />
+            <WordsStyle name="COMMENTS" fgColor="000000" bgColor="FFFFFF" fontName="&#x7265;s&lt;&#x0009;&#x0004;&#xBEEF;" fontStyle="0" nesting="0" />
+            <WordsStyle name="LINE COMMENTS" fgColor="808080" bgColor="FFFFFF" fontName="&#xFBDF;&#xA7F4;&#x0104;&#x8000;&#x00F8;" fontStyle="0" nesting="0" />
+            <WordsStyle name="NUMBERS" fgColor="FF0000" bgColor="FFFFFF" fontName="Courier New" fontStyle="2" fontSize="10" nesting="0" />
+            <WordsStyle name="KEYWORDS1" fgColor="0000FF" bgColor="FFFFFF" fontName="Courier New" fontStyle="1" fontSize="10" nesting="0" />
+            <WordsStyle name="KEYWORDS2" fgColor="0080FF" bgColor="FFFFFF" fontName="Courier New" fontStyle="0" fontSize="10" nesting="0" />
+            <WordsStyle name="KEYWORDS3" fgColor="800080" bgColor="FFFFFF" fontName="" fontStyle="0" nesting="0" />
+            <WordsStyle name="KEYWORDS4" fgColor="0000FF" bgColor="FFFFFF" fontName="" fontStyle="1" nesting="0" />
+            <WordsStyle name="KEYWORDS5" fgColor="800040" bgColor="FFFFFF" fontName="&#x0006;" fontStyle="0" nesting="0" />
+            <WordsStyle name="KEYWORDS6" fgColor="8080FF" bgColor="FFFFFF" fontName="" fontStyle="0" nesting="0" />
+            <WordsStyle name="KEYWORDS7" fgColor="000080" bgColor="FFFFFF" fontName="&#x7670;&#x042F;&#x7620;&#x042F;&#x7698;&#x042F;&#x7648;&#x042F;&#x76C0;&#x042F;&#x76E8;&#x042F;&#x75D0;&#x042F;&#x75F8;&#x042F;&#x7738;&#x042F;&#x5B90;&#x042F;&#x5C08;&#x042F;&#x57D0;&#x042F;&#x5A00;&#x042F;&#x5820;&#x042F;&#x5898;&#x042F;&#x5AA0;&#x042F;&#x5B68;&#x042F;&#x5C30;&#x042F;&#x0002;" fontStyle="1" nesting="0" />
+            <WordsStyle name="KEYWORDS8" fgColor="8080FF" bgColor="FFFFFF" fontName="Courier New" fontStyle="2" fontSize="10" nesting="0" />
+            <WordsStyle name="OPERATORS" fgColor="008000" bgColor="FFFFFF" fontName="Courier New" fontStyle="1" fontSize="10" nesting="0" />
+            <WordsStyle name="FOLDER IN CODE1" fgColor="FF0000" bgColor="FFFFFF" fontName="Courier New" fontStyle="7" fontSize="10" nesting="0" />
+            <WordsStyle name="FOLDER IN CODE2" fgColor="000000" bgColor="FFFFFF" fontName="rogress.&#x634E;&#xA7E2;&#x1666;&#x8000;&#x0888;&#x0DF1;&#x000D;&#x0102;&#x000C;&#x0858;&#x0DF1;&#x000C;&#x0102;&#x000B;&#x0828;&#x0DF1;&#x000B;&#x0102;&#x000A;&#x07C8;&#x0DF1;&#x000A;&#x0101;&#x0009;&#xDFE0;&#x040E;&#xB550;&#x0DE1;&#x6850;&#x0DED;&#xB4D8;&#x0DE1;&#xDB20;&#x0DE1;&#xDEA0;&#x040E;&#x6337;&#xA7FB;&#x1752;&#x8000;&#x06D8;&#x0DF1;&#x0006;&#x0102;&#x0005;&#x06A8;&#x0DF1;&#x0005;&#x0102;&#x0004;&#x0678;&#x0DF1;&#x0004;&#x0102;&#x0003;&#x07B0;&#x0DF1;&#x000A;&#x0101;&#x0009;&#x0630;&#x0DF1;&#x0003;&#x0101;&#x0002;D\{6756&#x633C;&#xA7F4;&#x1834;&#x8000;&#x0780;&#x0DF1;&#x0009;&#x0102;&#x0008;&#x0750;&#x0DF1;&#x0008;&#x0102;&#x0007;&#x0720;&#x0DF1;&#x0007;&#x0101;&#x0006;&#x05E8;&#x0DF1;&#x0002;" fontStyle="0" nesting="0" />
+            <WordsStyle name="FOLDER IN COMMENT" fgColor="000000" bgColor="FFFFFF" fontName="&#x12B8;&#x72BB;&#x1288;&#x72BB;&#x126C;&#x72BB;&#x125C;&#x72BB;&#x123C;&#x72BB;&#x1228;&#x72BB;&#x1218;&#x72BB;&#x1208;&#x72BB;&#x11F8;&#x72BB;&#x11C8;&#x72BB;&#x10C8;&#x72BB;&#x1184;&#x72BB;&#x1170;&#x72BB;" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS1" fgColor="FF8000" bgColor="FFFFFF" fontName="Courier New" fontStyle="2" fontSize="10" nesting="0" />
+            <WordsStyle name="DELIMITERS2" fgColor="FF0000" bgColor="FFFFFF" fontName="Courier New" fontStyle="2" fontSize="10" nesting="0" />
+            <WordsStyle name="DELIMITERS3" fgColor="000000" bgColor="FFFFFF" fontName="Courier New" fontStyle="2" fontSize="10" nesting="117702655" />
+            <WordsStyle name="DELIMITERS4" fgColor="000000" bgColor="FFFFFF" fontName="\Microsoft\Windows\CurrentVersion\AppModel\PackageRepository" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS5" fgColor="000000" bgColor="FFFFFF" fontName="" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS6" fgColor="000000" bgColor="FFFFFF" fontName="&#x17C4;&#x5216;&#x17B4;&#x5216;" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS7" fgColor="000000" bgColor="FFFFFF" fontName="urn:schemas-echostar-com:device:EchoStarDevice:1" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS8" fgColor="000000" bgColor="FFFFFF" fontName="&#x5C3A;" fontStyle="0" nesting="0" />
+        </Styles>
+    </UserLang>
+</NotepadPlus>

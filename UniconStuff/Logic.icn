@@ -1,0 +1,245 @@
+package Logic
+
+
+# Proposed Grammar:
+#   atom ::= any primitive, string, or _Scoel_Logic_Variable
+#   predicate ::= <ident> := <ident>(<atom>[, atom]*) // a record without an _Scoel_Logic_Variable
+#	query ::= <ident> :- <ident>(<atom>[, atom]*)  // a record may have an _Scoel_Logic_Variable
+#   rule ::= <ident> :- <query>[, query]*
+
+record _Scoel_Logic_Variable(var, value)
+record _Scoel_Logic_Result(result, index)
+
+class _Scoel_Logic()
+	local
+		predicates;
+	
+	method addPredicate(predicate)
+		local
+			key;
+			
+		key := type(predicate)
+		if /predicates[key] then {
+			predicates[key] := set()
+		}
+		insert(predicates[key], predicate)
+	end
+	
+	method getPredicates(key)
+		return predicates[key]
+	end
+	
+	method exists(predicate)
+		local
+			key,
+			item;
+			
+		key := type(predicate)
+		if \predicates[key] then {
+			every item := !predicates[key] do {
+				if item[1] == predicate[1] then return item
+				else return &null
+			}
+		} else {
+			return &null
+		}
+	end
+	
+	method toStringPredicateInternal(predicate)
+		local
+			str,
+			size,
+			count;
+			
+		str := ""
+		if \predicate then {
+			if type(predicate) ~== "string" then {
+				size := *predicate
+				every count := 1 to size do {
+					if count = 1 then str ||:= toStringPredicateInternal(predicate[count])
+					else str ||:= ", " || toStringPredicateInternal(predicate[count])
+				}
+			} else {
+				str ||:= predicate
+			}
+		} else {
+			str ||:= "&null"
+		}
+		return str
+	end
+	
+	method listContents(list)
+		local
+			str,
+			count,
+			item;
+		
+		if \list then {
+			str := "["
+			count := 1
+			every item := !list do {
+			#	write(type(item))
+				if type(item) ~== "string" then {
+					if count == 1 then str ||:= listContents(item)
+					else str ||:= ", " || listContents(item)
+				} else {
+					if count == 1 then str ||:= toStringPredicateInternal(item)
+					else str ||:= ", " || toStringPredicateInternal(item)
+				}
+				count +:= 1
+			}
+			str ||:= "]"
+			return str
+		}
+	end
+	
+	method makeRule(queries)
+		local
+			count,
+			item,
+			pre,
+			q,
+			rule;
+			
+		count := 1
+		every item := !queries do {
+			q := _Scoel_Logic_Query(self, &null, &null, item)
+			if count > 1 then {
+				q.previous := pre
+				pre.follow := q
+			} else {
+				rule := q
+			}
+			pre := q
+			count +:= 1
+		}
+		return rule
+	end
+initially
+	_Logic := self
+	predicates := table();
+end
+
+class _Scoel_Logic_Query()
+	local	
+		logic,
+		previous,
+		follow,
+		query,
+		key;
+		
+	method forwardProcess(predicates)
+		local
+			result,
+			res;
+		
+	#	write(logic.listContents(predicates))
+		if /predicates then predicates := logic.getPredicates(key)
+	#	writes(key, ": ")
+	#	write(type(logic.getPredicates(key)))
+	#	write(type(predicates))
+	#	write(logic.listContents(predicates),*predicates)
+		result := self.process(query, predicates)
+	#	write("forwardProcess: ", logic.listContents(result))
+		if \result.result then {
+			if \follow then {
+				return follow.forwardProcess(result.result)
+			} else {
+				return result # := self.backProcess(result, "success")
+			}
+		}
+	#	} else {
+	#		res := self.backProcess(result, "fail")
+	#	}
+	#	return res
+	end
+	
+#	method backProcess(result, success)
+#	#	write(success, " - ", *result)
+#		if \previous then {
+#			return previous.backProcess(result, success)
+#		} else {
+#			return result
+#		}
+#	end
+	
+	method process(q, predicates)
+		local
+			index,
+			varIndex,
+			indexes,
+			predicate,
+			item,
+			result,
+			success;
+			
+		result := []
+	#	write(*predicates)
+	#	write(logic.listContents(predicates))
+	#	write("\n\nProcessing: ", type(q), "(", logic.toStringPredicateInternal(q), ")")
+		indexes := []
+		index := 1
+		while index <= *q do {
+			if \q[index] then {
+				put(indexes, index)
+			} else {
+				varIndex := index
+			}
+			index +:= 1
+		}
+		every predicate := !predicates do {
+			success := queryMatch(q, predicate, indexes)
+			if \success & *success > 0 then {
+				every item:= !success do {
+					put(result, item)
+				}
+			}
+			success := &null
+		}
+	#	write(logic.listContents(result))
+	#	write("result: ", *result)
+		test := _Scoel_Logic_Result(result, varIndex)
+		return test
+	end
+	
+	method queryMatch(q, predicate, indexes)
+		local 
+			index,
+			item,
+			success,
+			result;
+			
+		index := 1
+		result := []
+	#	write(type(predicate), " : ", type(q))
+		if type(predicate) == type(q) then {
+	#		write("found one")
+			every item := !predicate do {
+				if member(indexes, index) then {
+					if logic.toStringPredicateInternal(item[index]) ~== logic.toStringPredicateInternal(q[index]) then {
+						return &null
+					}
+				}
+				index +:= 1
+			}
+			every index := 1 to *predicate do {
+				if not member(indexes, index) then {
+					if type(predicate[index]) == "list" then {
+						every item := !predicate[index] do put(result, item)
+					} else {
+						put(result, predicate[index])
+					}
+				}
+			}
+	#		write("Number found: ", *result)
+			return result		
+		}
+	end
+
+initially(l, pre, fol, q)
+	logic := l
+	previous := pre
+	follow := fol
+	query := q
+	key := type(query)	
+end

@@ -1,0 +1,171 @@
+#
+# $Id: textdisplay.icn,v 1.6 2006-07-10 17:07:18 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This class displays a list of strings.
+#
+class TextDisplay : DisplayScrollArea(contents, 
+                                      wrap_mode,
+                                      view_list, 
+                                      line_splitter,
+                                      tab_width)
+   method get_line_count()
+      return *self.view_list
+   end
+
+   #
+   # Set the data to be displayed.
+   # @param x  The list of data.
+   #
+   method set_contents(x)
+      self.contents := x
+      contents_changed()
+   end
+
+   #
+   # Call this method if the contents list, previously
+   # set with {set_contents()}, has changed.
+   #
+   method contents_changed()
+      view_list := &null
+      compute_and_invalidate()
+   end
+
+   #
+   # Return the contents of the {ScrollArea}
+   #
+   method get_contents()
+      return self.contents
+   end
+
+   method get_line_height()
+      return WAttrib(self.cwin, "fheight")
+   end
+
+   method get_view_x_padding()
+      return DEFAULT_TEXT_X_SURROUND
+   end
+
+   method get_view_y_padding()
+      return DEFAULT_TEXT_Y_SURROUND
+   end
+
+   method get_subject_width()
+      local mw, l
+      mw := 0
+      every l := !self.view_list do
+         mw <:= l.tw
+      return mw
+   end
+
+   method draw_line(xp, yp, i)
+      local v
+      v := view_list[i]
+      left_string(self.cbwin, xp, yp, detab(v.str, self.tab_width + 1))
+   end
+
+   #
+   # Create the view_list from the contents.
+   # @p
+   method create_view_list()
+      local s, i, pos, j, p
+
+      view_list := []
+      every i := 1 to *self.contents do {
+         pos := 1
+         s := self.contents[i]
+         every j := line_splitter.split(s) do {
+            p := s[pos:j]
+            put(view_list, ViewLine(i, p, pos, j - 1, 
+                                    TextWidthEx(self.cwin, p,,, self.tab_width)))
+            pos := j
+         }
+      }
+   end
+
+   method set_internal_fields()
+      local had_vsb
+      
+      had_vsb := self.vsb
+
+      if /view_list then
+         create_view_list()
+
+      self.ScrollArea.set_internal_fields()
+
+      if \wrap_mode == "width" & had_vsb ~=== self.vsb then {
+         create_view_list()
+         set_internal_fields()
+      }
+   end
+
+   #
+   # Set the tab width to use.  Default is eight chars.
+   #
+   method set_tab_width(n)
+      self.tab_width := n
+      self.view_list := &null
+      if is_dialog_open() then {
+         compute_and_invalidate()
+      }
+   end
+
+   method resize()
+      if \wrap_mode == "width" then
+         view_list := &null
+
+      self.ScrollArea.resize()
+   end
+
+   #
+   # Set the word-wrap mode, which should be one of the following
+   # values :-
+   #
+   # &null, "false", "off", "no", meaning don't do word-wrap (the default).
+   #
+   # an integer (eg 20), meaning wrap at that line length.
+   #
+   # "width", meaning wrap at the width of the component.
+   #
+   method set_wrap_mode(s)
+      local wc
+      self.wrap_mode := s
+      if /s | s == ("" | "false" | "off" | "no") then
+         line_splitter := DefaultLineSplitter(self)
+      else if wc := integer(s) then
+         line_splitter := ColumnLineSplitter(self, wc)
+      else if s == "width" then
+         line_splitter := WidthLineSplitter(self)
+      else
+         field_error("Bad wrap mode:" || s)
+
+      view_list := &null
+      if is_dialog_open() then
+         compute_and_invalidate()
+   end
+
+   method set_one(attr, val)
+      case attr of {
+         "wrap_mode": set_wrap_mode(string_val(attr, val))
+         "tab_width": set_tab_width(int_val(attr, val))
+         "contents" : set_contents(val)
+         default: self.LineBasedScrollArea.set_one(attr, val)
+      }
+   end
+
+   initially(a[])
+      self.DisplayScrollArea.initially()
+      tab_width := 8
+      set_wrap_mode("off")
+      set_fields(a)
+end

@@ -1,0 +1,803 @@
+############################################################################
+#
+#	File:     lisp.icn
+#
+#	Subject:  Program to interpret LISP programs
+#
+#	Author:   Stephen B. Wampler, modified by Phillip Lee Thomas and
+#		  Clinton Jeffery
+#
+#	Date:     February 4, 1991; version 1.3:  June 17, 2012
+#
+############################################################################
+#
+#   This file is in the public domain.
+#
+############################################################################
+#
+#     This program is a simple interpreter for pure Lisp. It takes the
+#  name of a Lisp program as an optional command-line argument.
+#
+#     The syntax and semantics are based on EV-LISP, as described in
+#  Laurent Siklossy's "Let's Talk LISP" (Prentice-Hall, 1976, ISBN
+#  0-13-532762-8).  Functions that have been predefined match those
+#  described in Chapters 1-5 of the book.
+#
+#     No attempt at improving efficiency has been made, this is
+#  rather an example of how a simple LISP interpreter might be
+#  implemented in Icon.
+#
+#     The language implemented is case-insensitive.
+#
+#     It only reads enough input lines at one time to produce at least
+#  one LISP-expression, but continues to read input until a valid
+#  LISP-expression is found.
+#
+#     It first reads in files listed on command line, switches
+#  to reading standard input, and terminates with the first (exit)
+#  instruction.
+#
+#  Errors:
+#
+#     Fails with error message if current input cannot be made into
+#  a valid LISP-expression (i.e. more right than left parens).
+#
+#  See HELP function at end of file for syntax summary/examples.
+#
+############################################################################
+link ximage
+
+global words,     # table of variable atoms
+       T, NIL,    # universal constants
+       infile     # command line library files
+
+global trace_set  # set of currently traced functions
+
+record prop(v,f)  # abbreviated property list
+
+$ifndef NOMAIN
+procedure main(argv)
+   lisp(argv)
+end
+$endif
+
+### main interpretive loop
+#
+procedure lisp(f) 
+local sexpr, source
+   /f := []
+   initialize()
+   preload()
+   if f[1] == ("-C" | "/C") then pop(f)  # run-command-then-terminate mode
+   else if not (!f=="-") then put(f, "-")   # append "-" by default
+   while source := pop(f) do {
+      if not (infile := (if source == "-" then &input else open(source))) then
+	 stop("wtLisp can't open ", image(source))
+      if source ~== "-" then write("Reading: ", image(source))
+      writes("> ")
+      every sexpr := bstol(getbs()) do  {
+	 PRINT([EVAL([sexpr])])
+	 writes("> ")
+	 }
+      }
+end
+
+## (READ) - read an s-expr under program control.
+#
+# This is obviously inadequate, the whole input subsystem needs re-thinking.
+#
+procedure READ()
+local tmp
+   tmp := ("" ~== |Map(read())) || " "
+   while not checkbal(tmp) do {
+      if more(')','(',tmp) then break
+      tmp ||:= (("" ~== |Map(read())) || " ") | break
+      }
+   return bstol(balstr(tmp))
+end
+
+## (EVAL e) - the actual LISP interpreter
+#
+procedure EVAL(l)
+local fn, arglist, arg
+
+   l := l[1]
+   if T === ATOM([l]) then {			# it's an atom
+      if T === l then return .T
+      if EQ([NIL,l]) === T then return .NIL
+      if numeric(l) then return l		# numbers eval to themselves
+      return .((\words[l]).v | NIL)
+      }
+   if glist(l) then {				# it's a list
+      if T === ATOM([l[1]]) then
+         case l[1] of {
+         "QUOTE" : return .(l[2] | NIL)
+	 "FUNCTION": return FUNCTION([l[2]]) | NIL
+         "COND"  : return COND(l[2:0])
+         "SETQ"  : return SET([l[2]]|||evlis(l[3:0]))
+         "ITRACEON"  : return (&trace := -1,T)
+         "ITRACEOFF" : return (&trace := 0,NIL)
+	 "HELP"      : return (HELP(l[2:0]),NIL)
+         "EXIT"      : exit(0)
+         default : return apply([l[1]]|||evlis(l[2:0])) | NIL
+         }
+      return apply([EVAL([l[1]])]|||evlis(l[2:0])) | NIL
+      }
+   return .NIL
+end
+
+## apply(fn,args) - evaluate the function
+
+procedure apply(l)
+local fn, arglist, arg, value, fcn
+   fn := l[1]
+   if member(trace_set, string(fn)) then {
+      write("Arguments of ",fn)
+      PRINT(l[2:0])
+      }
+   if value := case string(fn) of {
+      "CAR"     : CAR([l[2]]) | NIL
+      "CDR"     : CDR([l[2]]) | NIL
+      "CONS"    : CONS(l[2:0]) | NIL
+      "ATOM"    : ATOM([l[2]]) | NIL
+      "NULL"    : NULL([l[2]]) | NIL
+      "EQ"      : EQ([l[2],l[3]]) | NIL
+      "NUMBERP" : NUMBERP([l[2]]) | NIL
+      "ADD1"    : ADD1([l[2]]) | NIL
+      "PLUS"    : PLUS(l[2:0]) | NIL
+      "TIMES"   : TIMES(l[2:0]) | NIL
+      "MIN"     : MIN(l[2:0]) | NIL
+      "MAX"     : MAX(l[2:0]) | NIL
+      "RECIP"   : RECIP([l[2]]) | NIL
+      "SUB1"    : SUB1([l[2]]) | NIL
+      "DIFFERENCE": DIFFERENCE([l[2], l[3]]) | NIL
+      "EXPT"    : EXPT([l[2], l[3]]) | NIL
+      "QUOTIENT": QUOTIENT([l[2], l[3]]) | NIL
+      "REMAINDER": REMAINDER([l[2], l[3]]) | NIL
+      "ZEROP"   : ZEROP([l[2]]) | NIL
+      "ONEP"    : ONEP([l[2]]) | NIL
+      "MINUSP"  : MINUSP([l[2]]) | NIL
+      "LESSP"   : LESSP([l[2],l[3]]) | NIL
+      "GREATERP": GREATERP([l[2],l[3]]) | NIL
+      "EQUAL"   : EQUAL([l[2],l[3]]) | NIL
+      "PRINT"   : PRINT([l[2]]) | NIL
+      "EVAL"    : EVAL([l[2]]) | NIL
+      "READ"    : READ([]) | NIL
+      "DEFINE"  : DEFINE(l[2]) | NIL
+      "LIST"    : LIST(l[2:0]) | NIL
+      "LENGTH"  : LENGTH(l[2]) | NIL
+      "APPEND"  : APPEND([l[2],l[3]]) | NIL
+      "REVERSE" : REVERSE(l[2]) | NIL
+      "LAST"    : LAST(l[2]) | NIL
+      "TRACE"   : TRACE(l[2]) | NIL
+      "UNTRACE" : UNTRACE(l[2]) | NIL
+      } then {
+         if member(trace_set, string(fn)) then {
+            write("value of ",fn)
+            PRINT(value)
+            }
+         return value
+         }
+   fcn := (\words[fn]).f | return NIL
+   if type(fcn) == "list" then {
+      if fcn[1] == "LAMBDA" then {
+         value :=  lambda(l[2:0],fcn[2],fcn[3])
+         if member(trace_set, string(fn)) then {
+            write("value of ",fn)
+            PRINT(value)
+            }
+         return value
+         }
+      else
+         return EVAL([fn])
+      }
+   else if type(fcn) == "procedure" then {
+      return fcn(l[2:0])
+   }
+   return NIL
+end
+
+## evlis(l) - evaluate everything in a list
+#
+procedure evlis(l)
+local arglist, arg
+   arglist := []
+   every arg := !l do
+      put(arglist,EVAL([arg])) | fail
+   return arglist
+end
+
+
+### Initializations
+
+## initialize() - set up global values
+#
+procedure initialize()
+local func
+   words := table()
+
+   every func := (
+      ADD1 | APPEND | ATOM | CAR | CDR | COND | CONS |
+      DEFINE | DIFFERENCE |
+      EQ | EQUAL | EVAL | EXPT | FUNCTION | GREATERP | HELP |
+      LAST | LENGTH | LESSP | LIST |
+      MAX | MIN | MINUSP | NULL | NUMBERP |
+      ONEP | PLUS | PRINT | QUOTIENT |
+      RECIP | REMAINDER | REVERSE |
+      SET | SUB1 | TIMES | TRACE | UNTRACE | ZEROP ) do {
+	 words[image(func)[11:0]] := prop(, func)
+	 }
+
+   trace_set := set()
+   T     := "T"
+   NIL   := []
+end
+
+### Primitive Functions
+
+#
+# (ATOM a)
+#
+procedure ATOM(l)
+   if type(l[1]) == "list" then
+      return (*l[1] = 0 & .T) | .NIL
+   return .T
+end
+
+## (CAR l)
+#
+procedure CAR(l)
+   return glist(l[1])[1] | NIL
+end
+
+## (CDR l)
+#
+procedure CDR(l)
+   return glist(l[1])[2:0] | NIL
+end
+
+## (CONS l)
+#
+procedure CONS(l)
+   return ([l[1]]|||glist(l[2])) | NIL
+end
+
+## (FUNCTION f) - special form, look up function value in symbol table
+#
+procedure FUNCTION(l)
+   if \((\words[l[1]]).f) then {
+      return words[l[1]].f
+      }
+end
+
+## (SET a l)
+#
+procedure SET(l)
+   (T === ATOM([l[1]])& l[2]) | return NIL
+   /words[l[1]] := prop()
+   if type(l[2]) == "prop" then
+      return .(words[l[1]].v := l[2].v)
+   else
+      return .(words[l[1]].v := l[2])
+end
+
+## (NULL l)
+#
+procedure NULL(l)
+   return EQ([NIL,l[1]])
+end
+
+## (NUMBERP l)
+#
+procedure NUMBERP(l)
+   return if numeric(l[1]) then .T else .NIL
+end
+
+## (ZEROP l)
+#
+procedure ZEROP(l)
+   return if numeric(l[1]) & l[1] = 0 then .T else .NIL
+end
+
+## (ONEP l)
+#
+procedure ONEP(l)
+   return if numeric(l[1]) & l[1] = 1 then .T else .NIL
+end
+
+## (MINUSP l)
+#
+procedure MINUSP(l)
+   return if numeric(l[1]) & l[1] < 0 then .T else .NIL
+end
+
+## (LESSP l)
+#
+procedure LESSP(l)
+   return if numeric(l[1]) & numeric(l[2]) & l[1] < l[2] then .T else .NIL
+end
+
+## (GREATERP l)
+#
+procedure GREATERP(l)
+   return if numeric(l[1]) & numeric(l[2]) & l[1] > l[2] then .T else .NIL
+end
+
+## (EQUAL l) - close enough to a full Lisp EQUAL
+#
+procedure EQUAL(l)
+local i
+   if l[1] === l[2] then return .T
+   if type(l[1]) ~== type(l[2]) then return .NIL
+   if numeric(l[1]) & numeric(l[2]) then
+      return if l[1] = l[2] then .T else .NIL
+   if type(l[1]) == "list" then {
+      if *l[1] ~= *l[2] then return .NIL
+      every i := 1 to *l[1] do {
+	 if EQUAL([l[1][i], l[2][i]]) === .NIL then {
+	    return .NIL
+	    }
+	 }
+      return .T
+   }
+   return if l[1] === l[2] then .T else .NIL
+end
+
+## (ADD1 l)
+#
+procedure ADD1(l)
+   return if numeric(l[1]) then l[1]+1 else .NIL
+end
+
+## (PLUS l)
+#
+procedure PLUS(l)
+local sum, x
+   sum := 0
+   every x := !l do
+      if numeric(x) then sum +:= x else return .NIL
+   return sum
+end
+
+## (TIMES l)
+#
+procedure TIMES(l)
+local product, x
+   product := 1
+   every x := !l do
+      if numeric(x) then product *:= x else return .NIL
+   return product
+end
+
+## (MIN l)
+#
+procedure MIN(l)
+local m, x
+   m := l[1]
+   every x := !l do
+      if numeric(x) then m >:= x else return .NIL
+   return m
+end
+
+## (MAX l)
+#
+procedure MAX(l)
+local m, x
+   m := l[1]
+   every x := !l do
+      if numeric(x) then m <:= x else return .NIL
+   return m
+end
+
+## (LIST l)
+#
+procedure LIST(l)
+   return l
+end
+
+## (LENGTH l)
+#
+procedure LENGTH(l)
+   if type(l) == "list" then return *l
+end
+
+## (APPEND l)
+#
+procedure APPEND(l)
+   if type(l[1]) == "list" & type(l[2]) == "list" then
+      return l[1] ||| l[2]
+end
+
+## (REVERSE l)
+#
+procedure REVERSE(l)
+   if type(l) == "list" then return reverse(l)
+end
+
+## (LAST l)
+#
+procedure LAST(l)
+   if type(l) == "list" then return l[-1]
+end
+
+## (RECIP l)
+#
+procedure RECIP(l)
+   return if numeric(l[1]) then 1.0 / l[1] else .NIL
+end
+
+## (SUB1 l)
+#
+procedure SUB1(l)
+   return if numeric(l[1]) then l[1]-1 else .NIL
+end
+
+## (DIFFERENCE a1 a2)
+#
+procedure DIFFERENCE(l)
+   return if numeric(l[1]) & numeric(l[2]) then l[1] - l[2] else .NIL
+end
+
+## (EXPT a1 a2)
+#
+procedure EXPT(l)
+   return if numeric(l[1]) & numeric(l[2]) then l[1] ^ l[2] else .NIL
+end
+
+## (QUOTIENT a1 a2)
+#
+procedure QUOTIENT(l)
+   return if numeric(l[1]) & numeric(l[2]) then l[1] / l[2] else .NIL
+end
+
+## (REMAINDER a1 a2)
+#
+procedure REMAINDER(l)
+   return if numeric(l[1]) & numeric(l[2]) then l[1] % l[2] else .NIL
+end
+
+## (EQ a1 a2)
+#
+procedure EQ(l)
+   if type(l[1]) == type(l[2]) == "list" then
+      return (0 = *l[1] = *l[2] & T) | NIL
+   return (l[1] === l[2] & T) | NIL
+end
+
+## (PRINT l)
+#
+procedure PRINT(l)
+   PRIN1(l)
+   TERPRI()
+end
+
+## (PRIN1 l) - print without carriage return
+#
+procedure PRIN1(l)
+   if type(l[1]) == "prop" then
+      return PRIN1([l[1].v])
+   return writes(strip(ltos(l)))
+end
+
+## (TERPRI l) - terminate a print by printing a carriage return
+#
+procedure TERPRI()
+    write()
+end
+
+## COND(l) - support routine to eval
+#                 (for COND)
+procedure COND(l)
+local pair
+   every pair := !l do {
+      if type(pair) ~== "list" |
+              *pair ~= 2 then {
+         write(&errout,"COND: ill-formed pair list")
+         return NIL
+         }
+      if T === EVAL([pair[1]]) then
+         return EVAL([pair[2]])
+      }
+   return NIL
+end
+
+## (TRACE l)
+#
+procedure TRACE(l)
+   every insert(trace_set, !l)
+   return NIL
+end
+
+## (UNTRACE l)
+#
+procedure UNTRACE(l)
+   every delete(trace_set, !l)
+   return NIL
+end
+
+## glist(l) - verify that l is a list
+#
+procedure glist(l)
+   if type(l) == "list" then return l
+end
+
+## (DEFINE fname definition)
+#
+# This has been considerably rewritten (and made more difficult to use!)
+#  in order to match EV-LISP syntax.
+procedure DEFINE(l)
+   local fn_list
+   fn_list := []
+   every put(fn_list, define_fn(!l))
+   return fn_list
+end
+
+## Define a single function (called by 'DEFINE')
+#
+procedure define_fn(fn_def)
+   /words[fn_def[1]] := prop(NIL)
+   words[fn_def[1]].f := fn_def[2]
+   return fn_def[1]
+end
+
+## lambda(actuals,formals,def)
+#
+procedure lambda(actuals, formals, def)
+local save, act, form, pair, result, arg, i
+   save := table()
+   every arg := !formals do
+      save[arg] := \words[arg] | prop(NIL)
+   i := 0
+   every act := !formals do {
+      words[act] := (prop(actuals[i+:=1]|NIL)\1)
+      if type(words[act].v) == "procedure" then words[act].f := words[act].v
+   }
+   result := EVAL([def])
+   every pair := !sort(save) do
+      words[pair[1]] := pair[2]
+   return result
+end
+
+#  Date: June 10, 1988
+#
+procedure getbs()
+static tmp
+   initial tmp := ("" ~== |Map(read(infile))) || " "
+
+   repeat {
+      while not checkbal(tmp) do {
+         if more(')','(',tmp) then break
+         tmp ||:= (("" ~== |Map(read(infile))) || " ") | break
+         }
+      suspend balstr(tmp)
+      tmp := (("" ~== |Map(read(infile))) || " ") | fail
+      }
+end
+
+## checkbal(s) - quick check to see if s is
+#       balanced w.r.t. parentheses
+#
+procedure checkbal(s)
+   return (s ? 1(tab(bal()),pos(-1)))
+end
+
+## more(c1,c2,s) - succeeds if any prefix of
+#       s has more characters in c1 than
+#       characters in c2, fails otherwise
+#
+procedure more(c1,c2,s)
+local cnt
+   cnt := 0
+   s ? while (cnt <= 0) & not pos(0) do {
+         (any(c1) & cnt +:= 1) |
+         (any(c2) & cnt -:= 1)
+         move(1)
+         }
+   return cnt >= 0
+end
+
+## balstr(s) - generate the balanced disjoint substrings
+#               in s, with blanks or tabs separating words
+#
+#       errors:
+#          fails when next substring cannot be balanced
+#
+#
+procedure balstr(s)
+static blanks
+   initial blanks := ' \t'
+   (s||" ") ? repeat {
+          tab(many(blanks))
+          if pos(0) then break
+          suspend (tab(bal(blanks))\1 |
+                  {write(&errout,"ill-formed expression")
+                    fail}
+                  ) \ 1
+          }
+end
+
+#
+# bstol(s) - convert a balanced string into equivalent list representation.
+#
+procedure bstol(s)
+static blanks
+local l
+   initial blanks := ' \t'
+   (s||" ") ? {tab(many(blanks))
+               l := if not ="(" then s else []
+              }
+   if not string(l) then
+      every put(l,bstol(balstr(strip(s))))
+   return l
+end
+
+## ltos(l) - convert a list back into a string
+#
+#
+procedure ltos(l)
+   local tmp, elem
+
+   if type(l) ~== "list" then return l
+   if *l = 0 then return "NIL"
+   tmp := "("
+   every elem := !l do {
+      if string(elem)|(type(elem)=="list") then tmp ||:= ltos(elem)
+      else tmp ||:= ximage(elem)
+      tmp ||:= " "
+      }
+   tmp[-1] := ")"
+   return tmp
+end
+
+procedure strip(s)
+   s ?:= 2(="(", tab(bal()), =")", pos(0))
+   return s
+end
+
+procedure Map(s)
+   return map(s, &lcase, &ucase)
+end
+
+# pre-load the Lisp interpreter with some "built-ins" written in Lisp.
+procedure preload()
+local l, s
+
+   every s := ("(define (quote ((cadr (lambda (l) (car (cdr l)))))))" |
+	       "(define (quote ((memq (lambda (sex lis) _
+		   (cond ((null lis) nil) _
+		      ((eq sex (car lis)) lis) _
+		      (t (memq sex (cdr lis)))))))))" |
+	       "(define (quote ((member (lambda (sex lis) _
+		   (cond ((null lis) nil) _
+		      ((equal sex (car lis)) lis) _
+		      (t (member sex (cdr lis)))))))))" |
+	       "(define (quote ((mapcar (lambda (lis fun) _
+		   (cond ((null lis) nil) _
+		      (t (cons (fun (car lis)) (mapcar (cdr lis) fun)))))))))"
+	       ) do
+      every l := bstol(Map(s)) do {
+	 EVAL([ l ])
+	 }
+end
+
+procedure HELP(cmd)
+   static Execution, Basics, Arithmetic, Tracing, Programs
+   initial {
+      Execution := "\n" ||
+         "Execution:\n" ||
+         "  lisp -C file1 ... filen   ==> [Load and run files, then exit.]\n" ||
+         "  lisp file1 ... filen      ==> [Load and run files, then enter\n" ||
+         "                                  interactive mode until (exit).]\n" ||
+         "  (exit)                    ==> [Exit gracefully from lisp.]"
+      # "***** Syntax *****\n",
+      Basics := "\n" ||
+         "Basic functions:\n" ||
+         "  (quote (a b c))           ==> (A B C)\n" ||
+         "  (setq a (quote (a b c)))  ==> (A B C)\n" ||
+         "  (setq b (quote (x y z)))  ==> (X Y Z)\n" ||
+         "  (setq c (quote (a b c)))  ==> (A B C)\n" ||
+         "  (car a)                   ==> A\n" ||
+         "  (cadr a)                  ==> B\n" ||
+         "  (last a)                  ==> C\n" ||
+         "  (cdr a)                   ==> (B C)\n" ||
+         "  (append a b)              ==> (A B C X Y Z)\n" ||
+         "  (cons (quote d) a)        ==> (D A B C)\n" ||
+         "  (eval (quote a))          ==> (A B C)\n" ||
+         "  (list (quote x) a)        ==> (X (A B C))\n" ||
+         "  (reverse a)               ==> (C B A)\n" ||
+         "  (atom (quote ()))         ==> T\n" ||
+         "  (atom a)                  ==> NIL\n" ||
+         "  (eq (car a) (car a))      ==> T\n" ||
+         "  (eq a c)                  ==> NIL\n" ||
+         "  (equal a c)               ==> T\n" ||
+         "  (function cadr)           ==> (LAMBDA (L) (CAR (CDR L)))\n" ||
+         "  (memq (quote a) a)        ==> (A B C)\n" ||
+         "  (memq (quote (what is)) (quote (you (what is) your name)))\n" ||
+         "                            ==> NIL\n"  ||
+         "  (member (quote (what is)) (quote (you (what is) your name)))\n" ||
+         "                            ==> ((WHAT IS) YOUR NAME)\n" ||
+         "  (null (car (car a)))      ==> T\n" ||
+         "  (print a)                 ==> (A B C)"
+      
+      Arithmetic := "\n" ||
+         "Arithmetic functions:\n" ||
+         "  (numberp 4)               ==> T\n" ||
+         "  (length a)                ==> 3\n" ||
+         "  (add1 3)                  ==> 4\n" ||
+         "  (plus 2 3 4)              ==> 9\n" ||
+         "  (times 2 3 6)             ==> 36\n" ||
+         "  (min 13 4 8)              ==> 4\n" ||
+         "  (max 18 21 4)             ==> 21\n" ||
+         "  (recip 8)                 ==> 0.125\n" ||
+         "  (sub1 4)                  ==> 3\n" ||
+         "  (difference 4 20)         ==> -16\n" ||
+         "  (expt 2 5)                ==> 32\n" ||
+         "  (quotient 21 4)           ==> 5\n" ||
+         "  (remainder 21 4)          ==> 1\n" ||
+         "  (zerop 0)                 ==> T\n" ||
+         "  (onep 1)                  ==> T\n" ||
+         "  (minusp -5)               ==> T\n" ||
+         "  (lessp 1 5)               ==> T\n" ||
+         "  (equal 3 3)               ==> T\n" ||
+         "  (greaterp 5 1)            ==> T\n" ||
+         "  (mapcar (quote (1 2 3)) (function add1))\n" ||
+         "                            ==> (2 3 4)"
+      Tracing := "\n" ||
+         "Tracing and help:\n" ||
+         "  (trace (quote (car)))     ==> NIL\n" ||
+         "  (untrace (quote (car)))   ==> NIL\n" ||
+         "  (itraceon)                ==> T   [Turn on icon tracing.]\n" ||
+         "  (itraceoff)               ==> NIL [Turn off icon tracing.]\n" ||
+         "  (help)                    ==> NIL [Print help message.]"
+      Programs := "\n" ||
+         "***** Programming Examples *****\n" ||
+         "  (zerop (sub1 (add1 0)))   ==> T\n" ||
+         "  (onep (sub1 (add1 1)))    ==> T\n" ||
+         "\n" ||
+         "Defining functions: cadr and cddr:\n" ||
+         "  (define (quote (\n" ||
+         "     (caddr (lambda (l) (car (cdr (cdr l)))))\n" ||
+         "     (cddr (lambda (l) (cdr (cdr l))))\n" ||
+         "     )))                    ==> (CADDR CDDR)\n" ||
+         "  (caddr a)                 ==> C\n" ||
+         "  (cddr a)                  ==> (C)\n" ||
+         "  (trace (quote (cadr)))    ==> NIL\n" ||
+         "  (cadr a)                  ==> B\n" ||
+         "  (untrace (quote (cadr)))  ==> NIL\n" ||
+         "\n" ||
+         "Is an atom in a list? Using cond and recursion:\n" ||
+         "  (define (quote (\n" ||
+         "    (has (lambda (atm lis)\n" ||
+         "      (cond ((null lis) nil)\n" ||
+         "        ((eq atm (car lis)) t)\n" ||
+         "        (t (has atm (cdr lis))))\n" ||
+         "  )) )))                    ==> (HAS)\n" ||
+         "  (has (quote y) b)         ==> T\n" ||
+         "\n" ||
+         "Make '+' and '-' aliases of plus and difference:\n" ||
+         "  (define (quote (\n" ||
+         "    (+ (lambda (m n) (plus m n)))\n" ||
+         "    (- (lambda (m n) (difference m n)))\n" ||
+         "  )))"
+      }
+   
+   if *cmd = 0 then {
+      write(Execution)
+      write(Basics)
+      write(Arithmetic)
+      write(Tracing)
+      write(Programs)
+      }
+   else every n := 1 to *cmd do {
+      case cmd[n][1] of {
+         "E" : write(Execution)
+         "B" : write(Basics)
+         "A" : write(Arithmetic)
+         "T" : write(Tracing)
+         "P" : write(Programs)
+         default : write("For brief help, enter: (help E[xecution] | B[asics] |\n" ||
+            "  A[rithmetic] | T[racing] | P[rogram examples])")
+         }
+      }
+   return
+end

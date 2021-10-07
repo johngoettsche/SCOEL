@@ -1,0 +1,726 @@
+#
+# Standard (legacy) dialogs.
+#
+# These are primitive legacy Notice/TextDialog compatibility functions.
+# They need to be improved/polished/expanded.
+#
+link color, font_dlg
+$include "guih.icn"
+
+package gui
+
+global dialog_value, dialog_button
+
+$define ButtonWidth	 50	# minimum button width
+$define ButtonHeight	 30	# button height
+$define FieldWidth	 20	# default field width
+$define OpenWidth	 50	# default field width for Open/SaveDialog
+
+$define XOff		  0	# offset for text vidgets
+$define XOffButton	 85	# initial x offset for buttons
+$define XOffIncr	 15	# space between buttons
+
+# dialog used for selection, dialog_value should be one of choices, or &null
+class sdialog : Dialog(captions, choices, dflt, buttons, index, choice_width)
+   method component_setup()
+      self.setup()
+   end
+
+   method init_dialog()
+   local maxw := 0
+      every maxw <:= TextWidth(win, !captions)
+      maxw +:= 40
+      maxw <:= 60+choice_width
+      self.resize_win(maxw, (32 * (*captions + *choices +2)))
+   end
+   method setup()
+   local i, cap, check_box_group_1
+   local nlines := *captions + *choices + 2
+   local label_2, text_button_1, text_field_1
+
+      self.set_attribs("size="||(220+choice_width)||"," || (32 * nlines))
+      every i := 1 to *captions do {
+	 cap := Label()
+	 cap.set_pos("20", integer(i *100 / nlines)|| "%-5")
+	 cap.set_internal_alignment("l")
+	 cap.set_label(captions[i])
+	 self.add(cap)
+	 }
+      border_1 := Border()
+      border_1.set_pos("10", integer((i+1) * 100 / nlines) || "%-5")
+      border_1.set_size("100%-20",((*choices)*100/nlines)||"%")
+      border_1.set_internal_alignment("l")
+      check_box_group_1 := CheckBoxGroup()
+
+      every i := 1 to *choices do {
+	 cb := CheckBox()
+	 cb.set_pos(10, integer(i*100/nlines) || "%")
+	 cb.set_toggles()
+	 check_box_group_1.add(cb)
+	 cb.set_label(choices[i])
+	 cb.connect(self, "on_selection", ACTION_EVENT)
+	 border_1.add(cb)
+	 }
+      self.add(border_1)
+
+      every i := 1 to *buttons do {
+	 text_button_1 := TextButton()
+	 text_button_1.set_pos( integer(i * 100 / (*buttons+1)) || "%-20",
+			       integer((*captions + *choices + 1)*100/nlines) ||
+			       "%" )
+	 text_button_1.connect(self, "on_button", ACTION_EVENT)
+	 text_button_1.clear_toggles()
+	 text_button_1.set_label(buttons[i])
+	 text_button_1.set_internal_alignment("c")
+	 self.add(text_button_1)
+	 }
+   end
+
+   method on_selection(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      dialog_value := ev.source.label
+   end
+
+   method on_button(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      dialog_button := ev.source.label
+      dispose()
+   end
+
+   method on_keypress(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      dialog_button := buttons[1]
+      if ev.param === "\r" then
+	 dispose()
+   end
+
+initially(caps, chocs, dflt, btns, indx, chow)
+   captions := caps
+   choices := chocs
+   defaults := dflts
+   buttons := btns
+   index := indx
+   choice_width := chow
+   self.Dialog.initially()
+end
+
+procedure SelectDialog(
+   win, captions, choices, dflt, buttons, index
+   )
+local default_width, default_button, maxl, id, choice_width, maxb, lead, pad,
+      cwidth, dialog, maxw, y, temp_win
+
+   if type(win) ~== "window" then {
+      win :=: captions :=: labels :=: dflt :=: buttons :=: index
+      win := &window
+      /win := temp_win := WOpen("canvas=hidden", "bg=gray")
+      }
+
+   /captions := []
+   /choices := []
+   /buttons := ["Okay", "Cancel"]
+   /index := 1
+
+   if type(captions) ~== "list" then captions := [captions]
+   if type(choices) ~== "list" then choices := ([\choices] | [])
+   if type(buttons) ~== "list" then buttons := [buttons]
+
+   default_button := buttons[index] 		# null if out of bounds
+   default_width := FieldWidth
+
+   maxl := 0
+   every maxl <:= *(choices)
+   until *choices = maxl do put(choices, choices[-1] | "")
+
+   id := 0
+
+   choice_width := 0
+   every choice_width <:= TextWidth(win, !labels)
+   if choice_width > 0 then choice_width +:= 15
+
+   maxb := 0
+   every maxb <:= TextWidth(win, !buttons)
+   maxb +:= 10
+   maxb <:= ButtonWidth
+
+   lead := WAttrib(win, "leading")
+   pad := 2 * lead
+   cwidth := WAttrib(win, "fwidth")
+
+   dialog := sdialog(captions, labels, , buttons,, choice_width)
+
+   maxw := 0
+   every maxw <:= TextWidth(win, !captions)
+
+   y := -lead
+
+   dialog.show_modal()
+   if dialog_button === "Cancel" then dialog_value := &null
+   return dialog_button
+end
+
+# toggle dialog. myanswer should be a 1 for Okay or &null for cancel.
+class tdialog : Dialog(captions, toggles, states, buttons, index, tognam_width,
+		       myanswer, cboxes)
+   method component_setup()
+      self.setup()
+   end
+
+   method init_dialog()
+   local maxw := 0
+      every maxw <:= TextWidth(win, !captions)
+      maxw +:= 40
+      maxw <:= 60+tognam_width
+      self.resize_win(maxw, (32 * (*captions + *toggles +2)))
+   end
+   method setup()
+   local i, cap
+   local nlines := *captions + *toggles + 2
+   local label_2, text_button_1, text_field_1
+
+cboxes := []
+
+      self.set_attribs("size="||(220+tognam_width)||"," || (32 * nlines))
+      every i := 1 to *captions do {
+	 cap := Label()
+	 cap.set_pos("20", integer(i *100 / nlines)|| "%-5")
+	 cap.set_internal_alignment("l")
+	 cap.set_label(captions[i])
+	 self.add(cap)
+	 }
+
+      every i := 1 to *toggles do {
+	 cb := CheckBox()
+	 cb.set_pos(10, integer((*captions+i)*100/nlines) || "%")
+	 cb.set_toggles()
+	 if \ (states[i]) then cb.set_is_checked()
+	 cb.set_label(toggles[i])
+	 self.add(cb)
+	 put(cboxes, cb)
+	 }
+
+      every i := 1 to *buttons do {
+	 text_button_1 := TextButton()
+	 text_button_1.set_pos( integer(i * 100 / (*buttons+1)) || "%-20",
+			       integer((*captions + *toggles + 1)*100/nlines) ||
+			       "%" )
+	 text_button_1.connect(self, "on_button", ACTION_EVENT)
+	 text_button_1.clear_toggles()
+	 text_button_1.set_label(buttons[i])
+	 text_button_1.set_internal_alignment("c")
+	 self.add(text_button_1)
+	 }
+   end
+
+   method on_button(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      myanswer := ev.source.label
+      dispose()
+   end
+
+   method on_keypress(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      myanswer := buttons[1]
+      if ev.param === "\r" then
+	 dispose()
+   end
+
+initially(caps, togs, stats, btns, indx, togw)
+   captions := caps
+   toggles := togs
+   states := stats
+   buttons := btns
+   index := indx
+   tognam_width := togw
+   self.Dialog.initially()
+end
+
+procedure ToggleDialog(
+   win, captions, toggles, states, buttons, index
+   )
+local default_width, default_button, maxl, id, tognam_width, maxb, lead, pad,
+      cwidth, dialog, maxw, y, temp_win
+
+   if type(win) ~== "window" then {
+      win :=: captions :=: toggles :=: states :=: buttons :=: index
+      win := &window
+      /win := temp_win := WOpen("canvas=hidden", "bg=gray")
+      }
+
+   /captions := []
+   /toggles := []
+   /states := []
+   /buttons := ["Okay", "Cancel"]
+   /index := 1
+
+   if type(captions) ~== "list" then captions := [captions]
+   if type(toggles) ~== "list" then toggles := ([\toggles] | [])
+   if type(states) ~== "list" then states := ([\states] | [])
+   if type(buttons) ~== "list" then buttons := [buttons]
+
+   default_button := buttons[index] 		# null if out of bounds
+   default_width := FieldWidth
+
+   maxl := 0
+   every maxl <:= *(toggles)
+   until *toggles = maxl do put(toggles, toggles[-1] | "")
+
+   id := 0
+
+   tognam_width := 0
+   every tognam_width <:= TextWidth(win, !toggles)
+   if tognam_width > 0 then tognam_width +:= 15
+
+   maxb := 0
+   every maxb <:= TextWidth(win, !buttons)
+   maxb +:= 10
+   maxb <:= ButtonWidth
+
+   lead := WAttrib(win, "leading")
+   pad := 2 * lead
+   cwidth := WAttrib(win, "fwidth")
+
+   dialog := tdialog(captions, toggles, states, buttons,, tognam_width)
+
+   maxw := 0
+   every maxw <:= TextWidth(win, !captions)
+
+   y := -lead
+
+   dialog.show_modal()
+   dialog_button := dialog.myanswer
+   dialog_value := []
+   every i := 1 to *dialog.cboxes do {
+      put(dialog_value, if dialog.cboxes[i].is_checked() then 1 else &null)
+      }
+   return dialog_button
+end
+
+class vdialog : Dialog(captions, labels, buttons, textfields,
+		       defaults, myanswer, label_width,
+		       myanswer)
+   method component_setup()
+      self.setup()
+   end
+
+   method end_dialog()
+   end
+
+   method init_dialog()
+   local maxw
+      maxw := 0
+      every maxw <:= TextWidth(win, !captions)
+      maxw +:= 40
+      maxw <:= 220+label_width
+      self.resize_win(maxw, (32 * (*captions + *labels +2)))
+      if textfields[1] then {
+	 Enqueue(\win, &lpress, textfields[1].x+2, textfields[1].y+2)
+	 }
+   end
+
+   method setup()
+   local i, cap
+   local nlines := *captions + *labels + 2
+   local label_2, text_button_1, text_field_1
+
+      self.set_attribs("size="||(220+label_width)||"," || (32 * nlines))
+      every i := 1 to *captions do {
+	 cap := Label()
+	 cap.set_pos("20", integer(i *100 / nlines)|| "%-5")
+	 cap.set_internal_alignment("l")
+	 cap.set_label(captions[i])
+	 self.add(cap)
+	 }
+      every i := 1 to *labels do {
+	 label_2 := Label()
+	 label_2.set_pos(20, integer((*captions + i)*100/nlines) || "%")
+	 label_2.set_internal_alignment("l")
+	 label_2.set_label(labels[i])
+	 self.add(label_2)
+	 }
+      every i := 1 to *labels do {
+	 text_field_1 := TextField()
+	 text_field_1.set_pos(20+label_width,
+			      integer((*captions + i)*100/nlines) || "%-10")
+	 text_field_1.set_size(180, 30)
+	 text_field_1.set_contents((\defaults)[i])
+	 text_field_1.set_draw_border()
+         if \dialogFor == "find" then
+	    text_field_1.set_contents(findstr)
+         else if \dialogFor == "goto" then
+	    text_field_1.set_contents(gotoln)
+         else if \dialogFor == "compile" then
+	    text_field_1.set_contents(targs)
+         else if \dialogFor == "run" then
+	    text_field_1.set_contents(xargs)
+         else text_field_1.set_contents("")
+	 text_field_1.connect(self, "on_keypress", ACTION_EVENT)
+
+	 self.add(text_field_1)
+	 put(textfields, text_field_1)
+	 }
+      every i := 1 to *buttons do {
+	 text_button_1 := TextButton()
+	 text_button_1.set_pos( integer(i * 100 / (*buttons+1)) || "%-20",
+			       integer((*captions + *labels + 1)*100/nlines) ||
+			       "%" )
+	 text_button_1.connect(self, "on_button", ACTION_EVENT)
+	 text_button_1.clear_toggles()
+	 text_button_1.set_label(buttons[i])
+	 text_button_1.set_internal_alignment("c")
+	 self.add(text_button_1)
+	 }
+   end
+
+   method on_button(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      myanswer := ev.source.label
+      dispose()
+   end
+
+   method on_keypress(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      myanswer := buttons[1]
+      if ev.param === "\r" then
+	 dispose()
+   end
+
+initially(caps, labs, btns, dflts, labwid)
+   captions := caps
+   labels := labs
+   buttons := btns
+   defaults := dflts
+   label_width := labwid
+   textfields := []
+   self.Dialog.initially()
+end
+
+
+procedure TextDialog(			#: text dialog
+   win, captions, labels, defaults, widths, buttons, index
+   )
+local default_width, default_button, maxl, id, label_width, maxb, lead, pad,
+      cwidth, dialog, maxw, y, temp_win
+
+   if type(win) ~== "window" then {
+      win :=: captions :=: labels :=: defaults :=: widths :=: buttons :=:
+         index
+      win := &window
+      /win := temp_win := WOpen("canvas=hidden", "bg=gray")
+      }
+
+   /captions := []
+   /labels := []
+   /defaults := []
+   /widths := []
+   /buttons := ["Okay", "Cancel"]
+   /index := 1
+
+   if type(captions) ~== "list" then captions := [captions]
+   if type(labels) ~== "list" then labels := ([\labels] | [])
+   if type(defaults) ~== "list" then defaults := ([\defaults] | [])
+   if type(widths) ~== "list" then widths := ([\widths] | [default_width])
+   if type(buttons) ~== "list" then buttons := [buttons]
+
+   default_button := buttons[index] 		# null if out of bounds
+   default_width := widths[-1] | FieldWidth
+
+   maxl := 0
+   every maxl <:= *(labels | defaults | widths)
+   until *labels = maxl do put(labels, labels[-1] | "")
+   until *defaults = maxl do put(defaults, defaults[-1] | "")
+   until *widths = maxl do put(widths, widths[-1] | 10)
+
+   id := 0
+
+   label_width := 0
+   every label_width <:= TextWidth(win, !labels)
+   if label_width > 0 then label_width +:= 15
+
+   maxb := 0
+   every maxb <:= TextWidth(win, !buttons)
+   maxb +:= 10
+   maxb <:= ButtonWidth
+
+   lead := WAttrib(win, "leading")
+   pad := 2 * lead
+   cwidth := WAttrib(win, "fwidth")
+
+   dialog := vdialog(captions, labels, buttons, defaults, label_width)
+
+   maxw := 0
+   every maxw <:= TextWidth(win, !captions)
+
+   y := -lead
+
+   dialog.show_modal()
+   dialog_button := dialog.myanswer
+   dialog_value := []
+   every put(dialog_value, (!(dialog.textfields)).get_contents())
+   return dialog_button
+end
+
+procedure Notice(captions[])		#: notice dialog
+   local win, temp_win, p
+   static type
+
+   initial type := proc("type", 0)	# protect attractive name
+
+   if type(captions[1]) == "window" then
+      win := get(captions)
+   else {
+      win := &window
+      /win := temp_win := WOpen("canvas=hidden", "bg=gray")
+      }
+
+   # use built-in if available
+   if \is_MSWindows & (p := proc("WinSelectDialog", 0)) then {
+      p(win, captions)
+      dialog_button := "Okay"
+      }
+   else
+      TextDialog(win, captions, , , , "Okay")
+
+   dialog_value := &null
+   WClose(\temp_win)
+   return dialog_button
+end
+
+# from Parlett's guidemo
+class ColourRectangle : Component(r, g, b)
+   method display(buffer_flag)
+      local W
+      W := if /buffer_flag then self.cwin else self.cbwin
+      FreeColor(W, WAttrib(self.cwin, "fg"))
+      WAttrib(W, "fg=" || r || "," || g || "," || b)
+      FillRectangle(W, self.x, self.y, self.w, self.h)
+   end
+
+   method handle_event(e)
+      fail
+   end
+
+   method set_colours(r, g, b)
+      self.r := r
+      self.g := g
+      self.b := b
+      dialog_value := r||","||g||","||b
+   end
+
+   method set_hsv(h, s, v)
+      dialog_value := HSVValue(h||"/"||s||"/"||v) | stop("no HSVValue")
+      dialog_value ? {
+	 self.r := integer(tab(many(&digits)))
+	 =","
+	 self.g := integer(tab(many(&digits)))
+	 =","
+	 self.b := integer(tab(many(&digits)))
+	 }
+   end
+
+   initially
+      self.Component.initially()
+end
+
+class cdialog : Dialog(captions, refcolor, callback, value,
+		       s1, s2, s3, s4, s5, s6, # RBG, then HSV
+		       b1, cr, lab, myanswer)
+   method init_dialog()
+   local maxw := 0
+      every maxw <:= TextWidth(win, !captions)
+      maxw +:= 40
+      maxw <:= 420
+      self.resize_win(maxw, 370 + (32 * (*captions + 2)))
+      set_focus(b1)
+   end
+
+   method on_OK(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      if ev.type === GOT_FOCUS_EVENT then fail
+      myanswer := "OK"
+      dispose()
+   end
+
+   method on_Cancel(ev)
+      if ev.param === -12 then fail # do not trigger on mouse moves
+      myanswer := "Cancel"
+      dispose()
+   end
+
+   method on_slider(ev)
+     local r, g, b
+if ev.source === (s1 | s2 | s3) then {
+      cr.set_colours((r := s1.get_value()), (g := s2.get_value()), (b := s3.get_value()))
+      cr.display()
+      # set s4, s5, s6
+      hsv := HSV(r||","||g||","||b)
+      hsv ? {
+	 h := tab(many(&digits))
+	 ="/"
+	 s := tab(many(&digits))
+	 ="/"
+	 v := tab(many(&digits))
+	 s4.set_value(h)
+	 s5.set_value(s)
+	 s6.set_value(v)
+	 invalidate()
+	 }
+      }
+else if ev.source === (s4 | s5 | s6) then {
+      cr.set_hsv((h:=s4.get_value()), (s:=s5.get_value()), (v:=s6.get_value()))
+      cr.display()
+      # set s1, s2, s3
+      rgb := HSVValue(h||"/"||s||"/"||v)
+      rgb ? {
+	 r := tab(many(&digits))
+	 =","
+	 g := tab(many(&digits))
+	 =","
+	 b := tab(many(&digits))
+	 s1.set_value(r)
+	 s2.set_value(g)
+	 s3.set_value(b)
+	 invalidate()
+	 }
+   }
+      lab.set_label("(" || s1.get_value() || ", " || s2.get_value() || ", " || s3.get_value() || ")")
+   end
+
+   initially(caps, rcolor, cback, val)
+      local l, nlines := *caps + 2
+
+      captions := caps; refcolor := rcolor; callback := cback; value := val
+      self.Dialog.initially()
+      self.set_attribs_list(["size=420,370"])
+
+      every i := 1 to *captions do {
+	 cap := Label()
+	 cap.set_pos("20", string(i * 32))
+	 cap.set_internal_alignment("l")
+	 cap.set_label(captions[i])
+	 self.add(cap)
+	 }
+
+      s1 := Slider()
+      s1.set_pos("40", "50%")      
+      s1.set_align("c", "c")
+      s1.set_size(, "50%")
+      s1.set_range(0, 65535)
+      s1.set_ticks(10000)
+      s1.set_increment_size(1000)
+      s1.set_value(0)
+      s1.connect(self, "on_slider")
+      self.add(s1)
+ 
+      s2 := Slider()
+      s2.set_pos("80", "50%")      
+      s2.set_align("c", "c")
+      s2.set_size(, "50%")
+      s2.set_range(0, 65535)
+      s2.set_ticks(10000)
+      s2.set_increment_size(1000)
+      s2.set_value(0)
+      s2.connect(self, "on_slider")
+      self.add(s2)
+ 
+      s3 := Slider()
+      s3.set_pos("120", "50%")      
+      s3.set_align("c", "c")
+      s3.set_size(, "50%")
+      s3.set_range(0, 65535)
+      s3.set_ticks(10000)
+      s3.set_increment_size(1000)
+      s3.set_value(0)
+      s3.connect(self, "on_slider")
+      self.add(s3)
+
+      s4 := Slider()
+      s4.set_pos("300", "50%")      
+      s4.set_align("c", "c")
+      s4.set_size(, "50%")
+      s4.set_range(0, 360)
+      s4.set_ticks(10000)
+      s4.set_increment_size(1000)
+      s4.set_value(0)
+      s4.connect(self, "on_slider")
+      self.add(s4)
+ 
+      s5 := Slider()
+      s5.set_pos("340", "50%")      
+      s5.set_align("c", "c")
+      s5.set_size(, "50%")
+      s5.set_range(0, 100)
+      s5.set_ticks(10000)
+      s5.set_increment_size(1000)
+      s5.set_value(0)
+      s5.connect(self, "on_slider")
+      self.add(s5)
+ 
+      s6 := Slider()
+      s6.set_pos("380", "50%")      
+      s6.set_align("c", "c")
+      s6.set_size(, "50%")
+      s6.set_range(0, 100)
+      s6.set_ticks(10000)
+      s6.set_increment_size(1000)
+      s6.set_value(0)
+      s6.connect(self, "on_slider")
+      self.add(s6)
+
+      cr := ColourRectangle()
+      cr.set_pos("200", "50%")      
+      cr.set_align("c", "c")
+      cr.set_size(70, 70)   
+      cr.set_colours(0, 0, 0)
+      self.add(cr)
+
+      lab := Label()
+      lab.set_size(150,24)
+      lab.set_label("(0, 0, 0)")
+      lab.set_internal_alignment("c")
+      lab.set_pos(200, "50%-90")
+      lab.set_align("c", "c")
+      self.add(lab)
+      
+      b1 := TextButton()
+      b1.set_label("Okay")
+      b1.set_pos("35%", "88%")
+      b1.set_align("c", "c")
+      b1.connect(self, "on_OK", ACTION_EVENT)
+      self.add(b1)
+      b2 := TextButton()
+      b2.set_label("Cancel")
+      b2.set_pos("65%", "88%")
+      b2.set_align("c", "c")
+      b2.connect(self, "on_Cancel", ACTION_EVENT)
+      self.add(b2)
+end
+
+procedure ColorDialog(win, captions, refcolor, callback, value)
+   if type(win) ~== "window" then {
+      win :=: captions :=: refcolor :=: callback :=: value
+      win := &window
+      /win := temp_win := WOpen("canvas=hidden", "bg=gray")
+      }
+   /captions := []
+   if type(captions) ~== "list" then captions := [captions]
+
+   dialog := cdialog(captions, refcolor, callback, value)
+   dialog.show_modal()
+   dialog_button := dialog.myanswer
+end
+
+procedure FontDialog(win, font)
+   if type(win) ~== "window" then {
+      win :=: font; win := &window;
+      /win := temp_win := WOpen("canvas=hidden","bg=gray")
+      }
+   dialog := fdialog(font)
+   dialog.show_modal()
+   dialog_button := dialog.myanswer
+   if font := \ (dialog.font) then {
+      dialog_value := font
+      suspend font
+      suspend dialog.fontcolor
+      }
+end

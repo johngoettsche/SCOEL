@@ -1,0 +1,2867 @@
+# empty caselist_node
+global
+	current_package,
+	current_object,
+	current_method,
+	current_invoc,
+	current_codeblocktype,
+	current_access,
+	current_symbol_table,
+	root_symbol_table
+
+record location(packagename, objectname, methodname, invocname, codeblocktype)
+
+class node() 
+	local	
+		label,
+		children,
+		parent,
+		value,
+		ucode,
+		icode,
+		locate,
+		nodeType,
+		address,
+		first,
+		follow,
+		onSuccess,
+		onFail,
+		refLoc,
+		refObject
+		
+	method makeSymbolTable() 
+		local
+			child
+		
+#		write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.makeSymbolTable()
+			}
+		}
+	end 
+	
+	method typeCheck() 
+		local
+			child
+		
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.typeCheck()
+			}
+		}
+	end
+	
+	method iconCode()
+		local
+			child
+		
+		icode := ""
+		every child := \!children do {
+	#		write(type(child))
+			if \(type(child) ?? "node") then {
+				icode ||:= child.iconCode()
+			} else if \(type(child) ?? "token") then {
+				icode ||:= child.string
+			} else {
+				icode ||:= child
+			}	
+			icode ||:= " "
+		}
+		return icode
+	end
+	
+	method generate_first()
+		local
+			child
+		
+		every child := !children do {
+			if type(child) ?? "node" then {
+				if /first then first := child.generate_first()
+				return first
+			} else {
+				return self
+			}
+		}
+	end
+	
+	method uniconCode()
+		local
+			child
+		
+	#	write(label)
+		ucode := ""
+		every child := \!children do {
+			write(type(child))
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			ucode ||:= " "
+		}
+		return ucode
+	end
+	
+	method setCurrentTable()
+		local
+			thisTable,
+			tempTable
+		
+	#	write("------------------------------------------------------------------------------------")
+		
+		if \current_package then {
+			thisTable := current_symbol_table.root()
+		} else {
+			thisTable := current_symbol_table
+		}
+	#	write("current_package: ",current_package)
+		if \current_package then {
+			thisTable := thisTable.getTable(current_package)
+			if /thisTable then {
+				yyerror2(1200, "Package Table Error", current_package, &null)
+			}
+		}
+	#	write("current_object: ",current_object)
+		if \current_object then {
+			thisTable := thisTable.getTable(current_object)
+			if /thisTable then {
+				yyerror2(1200, "Object Table Error", current_object, &null)
+			}
+		}
+	#	write("current_method: ",current_method)
+		if \current_method then {
+			thisTable := thisTable.getTable(current_method)
+			if /thisTable then {
+				yyerror2(1200, "Method Table Error", current_method, &null)
+			}
+		}
+	#	write("current_invoc: ",current_invoc)
+		if \current_invoc then {
+			thisTable := thisTable.getTable(current_invoc)
+			if /thisTable then {
+				yyerror2(1200, "Invoc Table Error", current_invoc, &null)
+			}
+		}
+		if /thisTable then write("Table not found")
+		if \thisTable then return thisTable
+		else yyerror2(1200, "Table Error", current_package, &null)
+	end
+	
+	method to_string() 
+		local	
+			str
+			
+		str := label
+		if \value then str ||:= ", " || value
+		return str
+	end
+	
+initially(lab, ch)
+	local
+		child
+		
+	label := lab
+	children := ch
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
+end 
+
+class program_node : node () 
+	method makeSymbolTable(loc)
+		local 
+			field,
+			child
+		
+		current_symbol_table := current_symbol_table.root()
+#		write("program:current symbol table: ", current_symbol_table.ident, " size ", *current_symbol_table)
+		current_package := loc.packagename
+		current_object := &null
+		current_method := &null
+		current_invoc := &null
+#		write("program:current_package: ", current_package)
+		current_access := "global"
+		current_codeblocktype := "global"
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		field := Field_Ref(locate, current_package, "package", PackageType())
+		#no Address
+		current_symbol_table.addField(field)
+		current_symbol_table.createSymbolTable(current_package, current_access)
+		current_symbol_table := setCurrentTable()
+		
+#		write(type(self) || "program:Current Symbol Table: " || current_symbol_table.ident)
+#		first := generate_first()
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+		printParseTable(self, 0)
+		current_package :=  loc.packagename
+		write("program:package ", current_package)
+		self.typeCheck()
+		
+	#	write(current_symbol_table.to_string())
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_codeblocktype := "global"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+initially(ch)
+	self$node.initially("program", ch)
+end
+
+class decls_node : node () 
+	method makeSymbolTable()
+		local
+			child
+		
+#		write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+			current_symbol_table := setCurrentTable()
+			current_codeblocktype := "global"
+		}
+		
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+			current_codeblocktype := "global"
+		}
+		
+	end
+initially(ch)
+	self$node.initially("decls", ch)
+end
+
+class decl_node : node ()
+initially(ch)
+	self$node.initially("decl", ch)
+end 
+
+class constructor_node : node ()
+	local
+		number
+		
+	method makeSymbolTable()
+		local
+			field,
+			child
+		
+		
+		current_symbol_table := setCurrentTable()
+#		write("constructor: ",current_package,"-", current_object,"-", current_method,"-", current_invoc,"-", current_codeblocktype)
+		current_codeblocktype := current_method := current_object || "_constructor"
+		current_symbol_table.createSymbolTable(current_method, "constructor")
+		locate := location(current_package, current_object, &null, current_invoc, current_codeblocktype)
+		field := Field_Ref(locate, current_method, "read", ConstructorType())
+		field.invoc := 1
+#		write("================")
+#		write(current_symbol_table.to_string())
+		
+		current_symbol_table.addField(field)
+		current_symbol_table := setCurrentTable()
+#		write(current_symbol_table.to_string())
+		current_symbol_table := setCurrentTable()
+	#	current_symbol_table := current_symbol_table.getTable(current_method)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+#		write(current_package,":", current_object,":", current_method, ":", current_invoc,":", current_codeblocktype)
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+		current_method := &null
+	end
+	
+	method typeCheck()
+		local
+			child,
+			params
+		
+		current_codeblocktype := current_method := current_object || "_constructor"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	#	params := children[3].arglist
+		nodeType := ConstructorType(params)
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				if child.string == "constructor" then {
+					ucode ||:= "initially"
+				} else {
+					ucode ||:= child.string
+				}
+			} else {
+				ucode ||:= child
+			}	
+			if n = number then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		ucode ||:= "\n"
+		return ucode
+	end	
+initially(n, ch)
+	number := n
+	self$node.initially("constructor", ch)
+end
+
+class class_node : node ()
+	local 
+		params
+		
+	method makeSymbolTable()
+		local
+			child
+		
+		current_codeblocktype := "class"
+#		write("ClassNode ", current_object, ": ", current_method)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_object := &null
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+		current_object := &null
+		current_method := &null
+		current_invoc := &null
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_codeblocktype := "class"
+		current_object := &null
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	#	params := children[1].arglist ||| children[2].localsList
+		nodeType := ClassType(params)
+	end
+
+	method uniconCode()
+		ucode := self$node.uniconCode() || "\n"
+		return ucode
+	end
+	
+	method iconCode()
+		local
+			vars,
+			meths,
+			item,
+			count,
+			meth,
+			met,
+			className
+		
+		current_symbol_table := setCurrentTable()
+		if \locate.packagename then write("class:iconCode: ",locate.packagename);
+		if \locate.objectname then write("class:iconCode: ",locate.objectname);
+		if \locate.methodname then write("class:iconCode: ",locate.methodname);
+		write("class:iconCode:symbolTable: ",current_symbol_table.ident)
+		if \locate.objectname then className := locate.objectname
+		else {
+			className := getNodeLabel(children[1].children[3])
+			locate.objectname := className
+		}
+	#	current_symbol_table := setCurrentTable()
+	#write("-------------------------------");
+	#write(current_symbol_table.to_string());
+	#write("-------------------------------");
+		vars := []
+		meths := []
+		every item := key(current_symbol_table.symTable) do {
+			write("class:iconCode: ", image(item));
+			if type(item) ?? "Table" then {
+				put(meths, item.ident[0:-6]);
+			} else {
+				put(vars, item);
+			}
+		}
+		icode := "# " || className || "class generation #\n"
+		icode ||:= "record " || className || "__class(__self"
+		every item := !meths do {
+			icode ||:= ", " || item
+		}
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n\n"
+		
+		icode ||:= "record " || className || "__methods("
+		count := 0
+		every meth := !meths do {
+			if type(current_symbol_table[meth]) == "table" then{
+				if count > 0 then icode ||:= ", "
+				icode ||:= meth
+			} 
+		}
+		icode ||:= ")\n\n"
+		icode ||:= "global " || className || "__constructor\n\n"
+		
+		icode ||:= "procedure __" || className || "("
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n"
+		icode ||:= "local self, clone\n"
+		icode ||:= "initial {\n"
+		icode ||:= "if /" || className || "__constructor then " || className || "initialize()\n"
+		icode ||:= "}\n"
+		icode ||:= "self := " || className || "__class(&null, " || className || "__constructor,"
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n"
+		icode ||:= "self.__self := self\n"
+		icode ||:= "return self\n"
+		icode ||:= "end\n\n"
+				
+		every meth := !meths do {
+			if meth ?? "constructor" then {
+				icode ||:= "procedure " || className || "initialize()\n"
+				icode ||:= "initial " || className || "__constructor := " || className || "__methods("
+				count := 0
+				every met := !meths do {
+					if not(met ?? "constructor") then {
+						if count > 0 then icode ||:= ", "
+						icode := met 
+					}
+				}
+			}
+		}
+		
+		#icode ||:= self$node.iconCode() || "\n"
+		return icode
+	end
+initially(ch)
+	self$node.initially("class", ch)
+end
+
+class classhead_node : node ()
+	method makeSymbolTable()
+		local
+			field # current_package
+			
+		current_access := "global"
+		current_symbol_table := setCurrentTable()
+		current_object := getNodeLabel(children[3])
+		current_symbol_table.createSymbolTable(current_object, "object")
+#		write("classnode: ",current_symbol_table.to_string())
+		locate := location(current_package, &null, current_method, current_codeblocktype)
+		field := Field_Ref(locate, getNodeLabel(children[3]), "global", ClassType())
+		field.address := current_symbol_table.generate_object()
+		current_symbol_table.addField(field)
+		
+		current_symbol_table := setCurrentTable()
+#		write(type(self) , " classnode:Current Symbol Table: ", current_symbol_table.ident)
+		current_access := "object"
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		if \children[4] then children[4].makeSymbolTable()
+		if \children[6] then children[6].makeSymbolTable()
+	end
+	
+	method typeCheck()
+		local
+			child,
+			pname,
+			oname
+		
+		current_codeblocktype := "class"
+		current_object := getNodeLabel(children[3])
+		current_access := "object"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		if \children[4] then {
+			refLoc := children[4].refLoc
+			if \refLoc then { # check scope
+				refLoc.objectname := &null
+				 scopeCheck(locate, refLoc, refLoc.objectname, &null, children[4].first)
+			}
+		}
+	end
+	
+	method uniconCode() #classhead
+		local
+			child
+		
+		ucode := ""
+		every \(child := !children) do {
+			if type(child) ?? "token" then{
+				if child.string == "store" then {
+					# set up storage list
+				} else if child.string == "abtract" | "class" then {
+					ucode ||:= child.string || " "
+				}
+			} else if type(child) == "string" then {
+				ucode ||:= child || " "
+			} else {
+				ucode ||:= child.uniconCode() || " "
+			}
+		}
+		if *children = 4 then ucode ||:= "()"
+		if \children[1] then {
+			if getNodeLabel(children[1]) == "store" & getNodeLabel(children[3]) == "Main" then {
+				yyerror2(600, "Main Class Error", current_package, &null)
+			}
+		}
+		
+		ucode ||:= "\n"
+		return ucode
+	end
+initially(ch)
+	self$node.initially("classhead", ch)
+end
+
+class supers_node : node ()
+	method typeCheck()
+		local
+			child,
+			refObj,
+			obj,
+			field,
+			tempTable,
+			tempField
+		
+		
+		every child := !children do {
+			if type(child) ?? "node" then {
+				child.typeCheck()
+			}
+		}
+		tempTable := current_symbol_table.root()
+		tempTable := tempTable.getTable(locate.packagename)
+		tempField := tempTable.getField(locate.objectname)
+		tempTable := tempTable.getTable(locate.objectname)
+		if *children > 0 then {
+			if type(children[2]) ?? "token" then {
+				referenceLocation := locate
+				refObj := children[2].string
+				referenceLocation.objectname := &null
+				obj := scopeCheck(locate, locate, refObj, &null, children[2])
+				field := current_symbol_table.generate_super_Field(tempField, SuperType(), obj)
+				tempTable := tempTable.addField(field)
+			} else {
+				referenceLocation := location(children[2].referencePackage.string)
+				obj := scopeCheck(locate, referenceLocation, children[2].referenceObject.string, &null, children[2])
+				field := current_symbol_table.generate_super_Field(tempField, SuperType(), obj)
+				tempTable := tempTable.addField(field)
+			}
+		}
+	end
+initially(ch)
+	self$node.initially("supers", ch)
+end
+
+#currentLocation, referenceLocation, referenceLabel, assignmentFlag, token
+class packageref_node : node ()
+	local
+		referencePackage,
+		referenceObject,
+		referenceMethod
+		
+	method typeCheck()
+		local 
+			child,
+			tempTable,
+			currentTable,
+			field,
+			oldSymbolTable,
+			item
+		
+		every child := !children do {
+			if type(child) ?? "node" then {
+				child.typeCheck()
+			}
+		}
+		if *children > 2 then { # pac :: obj
+			referencePackage := children[1]
+			referenceObject := children[3]
+		} else  if *children > 1 then { # :: expr or call to built in function
+
+		} else { 
+			referencePackage := children[1].referencePackage 
+			referenceObject := children[1].referenceObject
+		#	referenceMethod := 
+		}
+	end
+initially(ch)
+	self$node.initially("packageref" || *ch, ch)
+end
+
+class semiOptional_node : node ()
+initially(ch)
+	self$node.initially("semiOptional", ch)
+end
+
+class methods_node : node ()
+	method makeSymbolTable()
+		local	
+			child
+			
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+			if current_symbol_table.scope ~== "global" && 
+					current_symbol_table.scope ~== "object" then {
+			}
+			current_method := &null
+		}
+	#	current_method := &null
+	end
+initially(ch)
+	self$node.initially("methods", ch)
+end
+
+class import_node : node ()
+	method makeSymbolTable()
+		local
+			oldAccess,
+			oldSymbolTable
+			
+		oldAccess := current_access
+		oldSymbolTable := current_symbol_table
+		current_access := getNodeLabel(children[1])
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		locate.packagename := &null
+		if type(children[2]) ?? "node" then {
+			children[2].makeSymbolTable()
+		}
+		current_access := oldAccess
+		current_symbol_table := oldSymbolTable
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("import", ch)
+end
+
+class link_node : node ()
+	method makeSymbolTable()
+		local
+			oldAccess
+			
+		oldAccess := current_access
+		current_access := getNodeLabel(children[1])
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		locate.packagename := &null
+		if type(children[2]) ?? "node" then {
+			children[2].makeSymbolTable()
+		}
+		current_access := oldAccess
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("link", ch)
+end
+
+class linklist_node : node ()	
+	method typeCheck()
+		local
+			childNo,
+			child, 
+			field,
+			item
+			
+		childNo := *children
+		child := getNodeLabel(children[childNo])
+		if \(item := current_symbol_table.inScope(child)) then {
+			if item.typ.basetype == "package" then {
+				write("linklist_node:table: ",item.ident)
+				field := current_symbol_table.generate_local_Field(item, item.objtype)
+				field.address := item.address
+				current_symbol_table.addField(field)
+			}
+		} else {
+			field := current_symbol_table.generate_local_Field(FilenameType())
+			field.value := child
+			current_symbol_table.addField(field)
+		} 
+		every child := !children do {
+			if type(child) ?? "node" then {
+				child.typeCheck()
+			}
+		}
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("linklist", ch)
+end
+
+class lnkfile_node : node ()
+	method typeCheck()
+		local	
+			file,
+			filename
+		
+		if type(children[1]) ?? "\"" then {
+			filename := "./" || getNodeLabel(children[1])
+			file := open(filename)
+			if /file then {
+				yyerror2(620, "System Error", filename, children[1])
+			} else {
+				#TBA
+			}
+			close(file)
+		} else {
+			locate
+			refLoc := location()
+			scopeCheck(locate, refLoc, getNodeLabel(children[1]), &null, children[1])
+		}
+	end
+initially(ch)
+	self$node.initially("lnkfile", ch)
+end
+
+class global_node : node ()	
+	method makeSymbolTable()
+		local
+			oldAccess
+			
+		oldAccess := current_access
+		current_access := getNodeLabel(children[1])
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+	#	locate.packagename := &null
+		if type(children[2]) ?? "node" then {
+			children[2].makeSymbolTable()
+		}
+		current_access := oldAccess
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 | 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("global", ch)
+end
+
+class const_node : node ()	
+	method makeSymbolTable(loc)
+		local
+			child
+		
+		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_access := label
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				if child.string == "const" then{
+					ucode ||:= "global"
+				} else {
+					ucode ||:= child.string
+				}
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 | 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("const", ch)
+end
+
+class topic_node : node ()	
+	method makeSymbolTable(loc)
+		local
+			child
+		
+		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_access := label
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 | 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("topic", ch)
+end
+
+class constlist_node : node ()                                
+	method makeSymbolTable()	
+		current_access := "const"
+		locate := location()
+		children[1].makeSymbolTable()
+		if *children > 2 then {
+			children[3].makeSymbolTable()
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+			
+		current_access := "const"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+initially(ch)
+	self$node.initially("idlist", ch)
+end
+
+class constdef_node : node ()
+	local
+		field
+		
+	method makeSymbolTable(loc)
+		local 
+			child			
+			
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)		
+		child := getNodeLabel(children[1])
+		field := Field_Ref(locate, child, current_access, ConstantType())
+		field.address := current_symbol_table.generate_constant()
+		current_symbol_table.addField(field)
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local 
+			assignedType,
+			child
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		current_symbol_table := current_symbol_table.root()
+		current_symbol_table := current_symbol_table.getTable(locate.packagename)
+		if type(children[3]) ?? "lit" then {
+			if type(children[3]) ?? "int" | "real" then {
+			#	write("constdef_node:value: ", children[3].value)
+				field.value := children[3].value
+				children[3].address := address
+				current_symbol_table.removeField("local$" || field.address.offset)
+			} else {
+				field.typ := PointerType()
+				field.reference := current_symbol_table.getField("local$" || field.address.offset)
+				current_symbol_table.removeField("local$" || field.address.offset)
+			}
+		} else {
+			field.value := children[3]
+			assignedType := type(children[3].value)
+			write("constdef_node:type: ", assignedType)
+		}
+		current_symbol_table := current_symbol_table.root()
+	end
+initially(ch)
+	self$node.initially("constdef", ch)
+end
+
+class record_node : node () # RECORD IDENT LPAREN fldlist RPAREN
+	method makeSymbolTable()
+		local
+			child,
+			field,
+			oldcodeblocktype,
+			oldSymbolTable
+		
+	#	write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		if /current_object then {
+			current_access := "global"
+		}  else {
+			current_access := "record_node: fix access"
+		}
+		oldcodeblocktype := current_codeblocktype
+		oldSymbolTable := current_symbol_table
+	#	write("OldSymbolTable: ", oldSymbolTable.ident)
+		current_codeblocktype := "record"
+		child := getNodeLabel(children[2])
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		field := Field_Ref(locate, child, current_access, RecordType())
+		field.address := current_symbol_table.generate_global()
+		current_symbol_table.addField(field)
+		current_symbol_table.createSymbolTable(child, "record")
+		current_symbol_table := current_symbol_table.getTable(child)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+		
+		current_codeblocktype := oldcodeblocktype
+		current_symbol_table := oldSymbolTable
+	#	write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+	end
+	
+	method typeCheck()
+		local
+			child
+
+		current_codeblocktype := "record"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 5 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("record", ch)
+end
+
+class store_node : node()
+initially(ch)
+	self$node.initially("store", ch)
+end
+
+class invocDef_node : node ()
+	method makeSymbolTable()
+		local
+			child,
+			field,
+			item,
+			oldcodeblocktype,
+			oldSymbolTable,
+			oldInvoc
+		
+	#	write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		oldcodeblocktype := current_codeblocktype
+		oldSymbolTable := current_symbol_table
+		oldInvoc := current_invoc
+		current_codeblocktype := "invoc"
+#		write("-----------------\ninvocDef_node:current_package: ", current_package)
+#		if /current_object then write("invocDef_node:current_object: ", current_object)
+#		if /current_method then write("invocDef_node:current_method: ", current_method)
+#		if /current_invoc then write("invocDef_node:current_invoc: ", current_invoc)
+#		if /current_codeblocktype then write("invocDef_node:current_codeblocktype: ", current_codeblocktype)
+#		write(current_package," id ", current_object," id ", current_method," id ", current_invoc," id", current_codeblocktype)
+		current_symbol_table := setCurrentTable()
+		child := getNodeLabel(children[1])
+	#	write("invocDef:child: ", child)
+		current_invoc := child
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		if \(item := current_symbol_table.inScope(child)) then {
+	#		write(child, " is in scope.")
+			current_codeblocktype := item.locate.codeblocktype
+			current_access := item.access
+		} else {
+			field := Field_Ref(locate, child, current_access, InvocableType())
+			current_symbol_table.addField(field)
+			current_codeblocktype := child
+			current_access := "invoc"
+		}
+		if children[3] ?? "query"  then { #query or rule
+			item.invoc := "logical"
+		} else if children[3] ?? "fact"  then { #fact
+			item.invoc := "logical"
+		} else {
+			if *children = 5 then { #
+				item.invoc := "patern"
+			} else { #function
+				item.invoc := "function"
+			}
+		}
+		item.invoc := 1
+		current_symbol_table.createSymbolTable(child, "invoc")
+		current_symbol_table := current_symbol_table.getTable(child)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+		
+		current_codeblocktype := oldcodeblocktype
+		current_invoc := oldInvoc
+		current_symbol_table := oldSymbolTable
+	end
+
+	method uniconCode()
+		local
+			n 
+			
+		ucode := "method " || children[1].string || "("
+		ucode ||:= children[3].uniconCode() || "\nend\n"
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("invocDef", ch)
+end
+
+class fact_node : node ()
+	local
+		item
+		
+	method makeSymbolTable()
+		local
+			child,
+			field,
+			item,
+			oldCodeblocktype,
+			oldSymbolTable
+		
+	#	write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		oldCodeblocktype := current_codeblocktype
+		oldSymbolTable := current_symbol_table
+	#	write(current_package," fa ", current_object," fa ", current_method," fa ", current_invoc," fa", current_codeblocktype)
+		current_symbol_table := setCurrentTable()
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "logical"
+		child := getNodeLabel(children[1])
+		if \(item := current_symbol_table.inScope(child)) then {
+			field := current_symbol_table.generate_local_Field(RecordType(), item)
+			field.invoc := "logical"
+			
+			current_symbol_table.addField(field)
+	#		write("fact node scope: ", current_access)
+			current_symbol_table.createSymbolTable(field.ident, field.access)
+			current_symbol_table := current_symbol_table.getTable(field.ident)
+		} else {
+			yyerror2(607, "semantic error", children[1].string, children[1])
+		}
+		
+		children[3].makeSymbolTable()
+		
+		current_symbol_table := oldSymbolTable
+		current_codeblocktype := oldCodeblocktype
+	end
+	
+	method typeCheck()
+		local
+			child,
+			oldCodeblocktype
+		
+		oldCodeblocktype := current_codeblocktype
+		current_codeblocktype := "logical"
+		child := getNodeLabel(children[1])
+		if \item then {
+			if item.typ.basetype ~== "record" then {
+				yyerror2(608, "semantic error", children[1].token.string, children[1].token)
+			} 
+		} 
+		current_codeblocktype := oldCodeblocktype
+	end
+initially(ch)
+	self$node.initially("fact", ch)
+end
+
+class queryList_node : node ()
+initially(ch)
+	self$node.initially("queryList", ch)
+end
+
+class query_node : node () #LPAREN fldlist RPAREN semiOptional LBRACE factList RBRACE
+	method makeSymbolTable() 
+		local
+			child,
+			oldCodeblocktype
+			
+		oldCodeblocktype := current_codeblocktype	
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "query"
+		write("-----------------/nquery_node:current_package: ", current_package)
+		if /current_object then write("query_node:current_object: ", current_object)
+		if /current_method then write("query_node:current_method: ", current_method)
+		if /current_invoc then write("query_node:current_invoc: ", current_invoc)
+		if /current_codeblocktype then write("query_node:current_codeblocktype: ", current_codeblocktype)
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.makeSymbolTable(locate)
+			}
+		}
+		current_codeblocktype := oldCodeblocktype
+	end 
+	
+	method typeCheck()
+		local
+			child
+		
+		current_codeblocktype := "query"
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.makeSymbolTable(locate)
+			}
+		}
+		current_codeblocktype := &null
+	end
+
+initially(ch)
+	self$node.initially("query", ch)
+end
+
+class ruleDef_node : node()
+
+initially(ch)
+	self$node.initially("ruleDef", ch)
+end
+
+class patternDef_node : node() # IDENT INVASSIGN LBRACE exprlist RBRACE
+	method makeSymbolTable() 
+		local
+			child,
+			oldCodeblocktype,
+			field
+		
+		oldCodeblocktype := current_codeblocktype
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "pattern"
+		field := current_symbol_table.getField(getNodeLabel(children[1]))
+		if \field then field.invoc := "pattern"
+		if \children[4] then {
+			children[4].makeSymbolTable(locate)
+		}
+		current_codeblocktype := oldCodeblocktype
+	end 
+	
+	method typeCheck()
+		local
+			child
+		
+		current_codeblocktype := "pattern"
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.typeCheck()
+			}
+		}
+		current_codeblocktype := &null
+	end
+initially(ch)
+	self$node.initially("patternDef", ch)
+end
+
+class functionDef_node : node() # IDENT FUNK LPAREN fldlist RPAREN INVASSIGN semiOptional LBRACE locals exprlist RBRACE
+	method makeSymbolTable()
+		local
+			child,
+			oldCodeblocktype,
+			field
+		
+		oldCodeblocktype := current_codeblocktype
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "function"
+		child := current_symbol_table.getField(getNodeLabel(children[1]))
+		field := current_symbol_table.inScope(child)
+		if \field then {
+			field.invoc := "function"
+		}
+		if \children[4] then {
+			children[4].makeSymbolTable()
+		}
+		if \children[8] then {
+			children[8].makeSymbolTable()
+		}
+		current_codeblocktype := oldCodeblocktype
+	end
+	
+	method typeCheck()
+		local
+			child,
+			oldCodeblocktype,
+			field
+		
+		oldCodeblocktype := current_codeblocktype
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "function"
+		child := current_symbol_table.getField(getNodeLabel(children[1]))
+		field := current_symbol_table.inScope(child)
+		if /field then {
+			yyerror2(613, "semantic error", children[1].token.string, children[1].token)
+		} 
+		if \children[4] then {
+			children[4].typeCheck()
+		}
+		if \children[8] then {
+			children[8].typeCheck()
+		}
+		current_codeblocktype := oldCodeblocktype
+	end
+initially(ch)
+	self$node.initially("functionDef", ch)
+end
+
+class fldlist_node : node ()
+initially(ch)
+	self$node.initially("fldlist", ch)
+end
+
+class method_node : node ()
+
+	method makeSymbolTable()
+		local
+			child
+			
+		current_access := "read"
+		current_codeblocktype := "method"
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+		current_access := "public"
+		current_method := &null
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_access := "read"
+		current_codeblocktype := "method"
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.typeCheck()
+			}
+		}
+		current_access := "public"
+		current_codeblocktype := &null
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		ucode ||:= "\n"
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("method", ch)
+end
+
+class methhead_node : node ()
+	method makeSymbolTable()
+		local
+			child,
+			field
+# codeblocktype
+#		write("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		if \current_package then write(current_package)
+		if \current_object then write(current_object)
+		if \current_method then write(current_method)
+#		write(getNodeLabel(children[2]))
+		
+		current_symbol_table := setCurrentTable()
+		
+		current_method := getNodeLabel(children[2])
+		parent.locate.packagename := current_method
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		field := Field_Ref(locate, current_method, current_access, MethodType())
+		field.invoc := "method"
+		current_symbol_table.addField(field)
+		current_symbol_table.createSymbolTable(current_method, "method")
+		current_symbol_table := current_symbol_table.getTable(current_method)	
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_method := getNodeLabel(children[2])
+		current_symbol_table := setCurrentTable()
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.typeCheck()
+			}
+		}
+	end
+	
+	method uniconCode()
+		local
+			child
+		
+	#	write(label)
+		ucode := ""
+		every child := \!children do {
+			write(type(child))
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			ucode ||:= " "
+		}
+		ucode ||:= "\n"
+		return ucode
+	end
+
+initially(ch)
+	self$node.initially("methhead", ch)
+end
+
+class arglist_node : node ()
+	local
+		arglist
+		
+	method makeSymbolTable()
+		local
+			child
+		
+		current_access := "local"
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+#		write("-----------------/narglist_node:current_package: ", current_package)
+#		if /current_object then write("arglist_node:current_object: ", current_object)
+#		if /current_method then write("arglist_node:current_method: ", current_method)
+#		if /current_invoc then write("arglist_node:current_invoc: ", current_invoc)
+#		if /current_codeblocktype then write("arglist_node:current_codeblocktype: ", current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_access := "local"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		if *children = 1 then {
+			arglist := ListType()
+		}
+	end
+	
+initially(ch)
+	arglist := []
+	self$node.initially("arglist", ch)
+end
+
+class idlist_node : node ()   # loc
+	method makeSymbolTable()
+		local
+			child,
+			f,
+			field
+		
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		write("idlist_node: ", current_symbol_table.ident)
+		if *children < 2 then {
+			child := getNodeLabel(children[1])
+			field := Field_Ref(locate, child, current_access)
+			field.address := current_symbol_table.generate_local()
+			if f := current_symbol_table.inScope(field.ident) then {
+				current_symbol_table.addField(field)
+			} else {
+				current_symbol_table.addField(field)
+			}
+		} else {
+			child := getNodeLabel(children[3])
+			field := Field_Ref(locate, child, current_access)
+			field.address := current_symbol_table.generate_local()
+			if f := current_symbol_table.inScope(field.ident) then {
+				current_symbol_table.addField(field)
+			} else {
+				current_symbol_table.addField(field)
+			}
+			children[1].makeSymbolTable(locate)
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		nodeType := ListType()
+	end
+initially(ch)
+	self$node.initially("idlist", ch)
+end
+
+class parmlist_node : node ()
+	local
+		paramlist
+
+	
+		
+	method typeCheck()
+		local
+			child
+		
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		if *children = 1 then {
+			put(paramlist, children[1].arg)
+		} else if *children = 3 then {
+			paramlist ||| children[1].paramlist
+			put(paramlist, children[3].arg)
+		}
+		
+	end
+initially(ch)
+	paramlist := []
+	self$node.initially("parmlist", ch)
+end
+
+class arg_node : node ()
+	local 
+		number,
+		arg
+		
+	method makeSymbolTable()
+		local
+			child,
+			field
+		
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		write("-----------------/narg_node:current_package: ", current_package)
+		if /current_object then write("arg_node:current_object: ", current_object)
+		if /current_method then write("arg_node:current_method: ", current_method)
+		if /current_invoc then write("arg_node:current_invoc: ", current_invoc)
+		if /current_codeblocktype then write("arg_node:current_codeblocktype: ", current_codeblocktype)
+		write(getNodeLabel(children[1]))
+		if *children = 1 then {
+			child := getNodeLabel(children[1])
+			field := Field_Ref(locate, child, current_access)
+			write(field.to_string())
+			current_symbol_table.addField(field)
+		} #else if *children = 3 then {
+#			if type(children[3]) ?? "token" then {
+#			
+#			} else {
+#			
+#			}
+#		} else if *children = 5 then {
+#		
+#		}
+#		every child := !children do {
+#			if type(child) ?? "node" then child.makeSymbolTable()
+#		}
+
+	end
+	
+	method typeCheck()
+		local
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+#		current_symbol_table := current_symbol_table.root()
+#		current_symbol_table := current_symbol_table.getTable(locate.packagename)
+#		if \current_object then {
+#			current_symbol_table := current_symbol_table.getTable(locate.current_object)
+#		}
+#		if \current_method then {
+#			current_symbol_table := current_symbol_table.getTable(locate.current_method)
+#		}
+#		if *children = 1 then {
+#			arg := current_symbol_table.getField(children[1])
+			
+#		}
+		
+	end
+	
+initially(n, ch)
+	number := n
+	self$node.initially("arg" || number, ch)
+end
+
+class locals_node : node ()
+	local
+		number
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 3 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(n, ch)
+	number := n
+	self$node.initially("locals" || number, ch)
+end
+
+class local_node : node ()
+	method makeSymbolTable()
+		local
+			child
+		
+		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+		
+		current_access := label
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+	
+	method uniconCode()
+		return "local"
+	end	
+initially(l, ch)
+	label := l
+	self$node.initially(label, ch)
+end
+
+class static_node : node ()
+	method makeSymbolTable()
+		local
+			child
+		
+		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+	end
+	
+	method typeCheck()
+		
+	end
+	
+	method uniconCode()
+		return "static"
+	end	
+initially(l, ch)
+	label := l
+	self$node.initially(label, ch)
+end
+
+class methbody_node : node ()
+	method makeSymbolTable()
+		local
+			child
+		
+		current_access := "method"
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+	end
+	
+	method typeCheck()
+		local
+			child
+			
+		current_access := "method"
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("methbody", ch)
+end
+
+# Expressions
+
+class expr_node : node ()
+initially(ch)
+	self$node.initially("expr", ch)
+end
+
+class and_node : node ()
+initially(ch)
+	self$node.initially("and", ch)
+end
+
+class swap_node : node ()
+initially(ch)
+	self$node.initially("swap", ch)
+end
+
+# redo typeCheck with scopeCheck()
+class assign_node : node ()	
+	method makeSymbolTable() 
+		local
+			child,
+			oldCodeblocktype
+		
+		oldCodeblocktype := current_codeblocktype
+		
+		write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		if \children then {
+			current_codeblocktype := "assign"
+			children[1].makeSymbolTable()
+			current_codeblocktype := oldCodeblocktype
+			children[3].makeSymbolTable()
+		}
+	end 
+	
+	method typeCheck()
+		local
+			child,
+			child2,
+			item,
+			item2,
+			token,
+			field
+		
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+		write("assign_node")
+		current_symbol_table := setCurrentTable()
+	#	current_symbol_table := current_symbol_table.root()
+	#	current_symbol_table := current_symbol_table.getTable(locate.packagename)
+	#	if \locate.objectname then current_symbol_table := current_symbol_table.getTable(locate.objectname)
+	#	if \locate.methodname then current_symbol_table := current_symbol_table.getTable(locate.methodname)
+	#	if \locate.invocname then current_symbol_table := current_symbol_table.getTable(locate.invocname)
+		child := getNodeLabel(children[1])
+	#--------------------------------------------------------------------------------------
+		if \(item := current_symbol_table.inScope(child)) then {
+			if item.access == "const" then {
+				yyerror2(606, "constant error", token.string, token)
+			} else {
+				if type(children[3]) ?? "token" then {
+					child2 := getNodeLabel(children[3])
+					if \(item2 := current_symbol_table.inScope(child2)) then {
+						item.reference := item2
+						field := current_symbol_table.generate_local_Field(item2.type, item2)
+						current_symbol_table.addField(field)
+					} else {
+						yyerror2(605, "semantic error", label, children[3])
+					}
+				} else {
+					write("found: ",type(children[3]), " ; ", children[3].label)
+					field := children[3].generate_local_Field(current_symbol_table)
+				}
+			}		
+			item.reference := field
+		} else {
+			item := children[1]
+			while type(item) ?? "node" do {
+				item := item.children[1]
+			}
+			if type(children[1]) ?? "token" then {
+				yyerror2(605, "semantic error", label, children[1])
+			} else {
+				write("assign_node: not in scope, something else: ", item.to_string())
+			}
+		}
+		#---------------------------------------------------------------------------------
+	end
+initially(ch)
+	self$node.initially("assign", ch)
+end
+
+class invocAssign_node : node ()
+initially(ch)
+	self$node.initially("invocAssign", ch)
+end
+
+class condAssign_node : node()
+initially(ch)
+	self$node.initially("condAssign", ch)
+end
+
+class Bdiffa_node : node ()
+initially(ch)
+	self$node.initially("Bdiffa", ch)
+end
+
+class Buniona_node : node ()
+initially(ch)
+	self$node.initially("Buniona", ch)
+end
+
+class Bplusa_node : node ()
+initially(ch)
+	self$node.initially("Bplusa", ch)
+end
+
+class Bminusa_node : node ()
+initially(ch)
+	self$node.initially("Bminusa", ch)
+end
+
+class Bstara_node : node ()
+initially(ch)
+	self$node.initially("Bstara", ch)
+end
+
+class Bintera_node : node ()
+initially(ch)
+	self$node.initially("Binter", ch)
+end
+
+class Bslasha_node : node ()
+initially(ch)
+	self$node.initially("Bslasha", ch)
+end
+
+class Bmoda_node : node ()
+initially(ch)
+	self$node.initially("Bmoda", ch)
+end
+
+class Bcareta_node : node ()
+initially(ch)
+	self$node.initially("Bcareta", ch)
+end
+
+class Baugeq_link_node : node ()
+initially(ch)
+	self$node.initially("Baugeq", ch)
+end
+
+class Baugge_node : node ()
+initially(ch)
+	self$node.initially("Baugge", ch)
+end
+
+class Bauggt_node : node ()
+initially(ch)
+	self$node.initially("Bauggt", ch)
+end
+
+class Baugle_node : node ()
+initially(ch)
+	self$node.initially("Baugle", ch)
+end
+
+class Bauglt_node : node ()
+initially(ch)
+	self$node.initially("Bauglt", ch)
+end
+
+class Baugne_node : node ()
+initially(ch)
+	self$node.initially("Baugne", ch)
+end
+
+class Baugques_node : node ()
+initially(ch)
+	self$node.initially("Baugques", ch)
+end
+
+class Baugamper_node : node ()
+initially(ch)
+	self$node.initially("Baugamper", ch)
+end
+
+class to_node : node ()
+initially(ch)
+	self$node.initially("to", ch)
+end
+
+class toby_node : node ()
+initially(ch)
+	self$node.initially("toby", ch)
+end
+
+class bar_node : node ()
+initially(ch)
+	self$node.initially("|", ch)
+end
+
+class Beq_node : node ()
+initially(ch)
+	self$node.initially("beq", ch)
+end
+
+class Bge_node : node ()
+initially(ch)
+	self$node.initially("Bge", ch)
+end
+
+class Bgt_node : node ()
+initially(ch)
+	self$node.initially("Bgt", ch)
+end
+
+class Ble_node : node ()
+initially(ch)
+	self$node.initially("Ble", ch)
+end
+
+class Blt_node : node ()
+initially(ch)
+	self$node.initially("Blt", ch)
+end
+
+class Bne_node : node ()
+initially(ch)
+	self$node.initially("Bne", ch)
+end
+
+class Bplus_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bplus", ch)
+end
+
+class Bdiff_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bdiff", ch)
+end
+
+class Bunion_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bunion", ch)
+end
+
+class Bminus_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bminus", ch)
+end
+
+class Bstar_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bstar", ch)
+end
+
+class Binter_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Binter", ch)
+end
+
+class Bslash_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bslash", ch)
+end
+
+class Bmod_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bmod", ch)
+end
+
+class Bcaret_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("Bcaret", ch)
+end
+
+class limit_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("limit", ch)
+end
+
+class apply_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[1|3].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("apply", ch)
+end
+
+class ubar_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("ubar", ch)
+end
+
+class udot_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("udot", ch)
+end
+
+class ubang_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("ubang", ch)
+end
+
+class udiff_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("udiff", ch)
+end
+
+class uplus_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uplus", ch)
+end
+
+class ustar_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("ustar", ch)
+end
+
+class uslash_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uslash", ch)
+end
+
+class ucaret_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("ucaret", ch)
+end
+
+class uinter_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uinter", ch)
+end
+
+class utilde_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("utilde", ch)
+end
+
+class uminus_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uminus", ch)
+end
+
+class unumne_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("unumne", ch)
+end
+
+class uunion_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uunion", ch)
+end
+
+class uqmark_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("uqmark", ch)
+end
+
+class ubackslash_node : node ()
+	method generate_first()
+		local 
+			child
+			
+		every child := !children do {
+			if type(child) ?? "node" then child.generate_first()
+		}
+		first := \children[2].first | current_symbol_table.generate_label()
+	end
+initially(ch)
+	self$node.initially("ubackslash", ch)
+end
+
+class section_node : node ()
+	
+initially(ch)
+	self$node.initially("section", ch)
+end
+
+class return_node : node ()
+initially(ch)
+	self$node.initially("return", ch)
+end
+
+class if_node : node ()
+initially(ch)
+	self$node.initially("if", ch)
+end
+
+class case_node : node ()
+initially(ch)
+	self$node.initially("case", ch)
+end
+
+class while_node : node ()
+initially(ch)
+	self$node.initially("while", ch)
+end
+
+class until_node : node ()
+initially(ch)
+	self$node.initially("until", ch)
+end
+
+class every_node : node ()
+initially(ch)
+	self$node.initially("every", ch)
+end
+
+class repeat_node : node ()
+initially(ch)
+	self$node.initially("repeat", ch)
+end
+
+class ident_node : node ()
+	method makeSymbolTable()
+		local
+			field,
+			ident,
+			item,
+			child
+		
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype) 
+		ident := value	
+		if /(item := current_symbol_table.inScope(ident))then {
+	#		write(type(field))
+			yyerror2(605, "semantic error", ident, children[1])
+		} 
+		field := current_symbol_table.generate_local_Field(PointerType(), item)
+		current_symbol_table.addField(field)
+
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+	end
+	
+	method typeCheck()
+		local
+			field,
+			ident,
+			item,
+			child
+		
+
+		every child := !children do {
+			if type(child) ?? "node" then child.makeSymbolTable()
+		}
+		
+		if \(item := current_symbol_table.inScope(getNodeLabel(children[1])))then {
+			write("found it")
+		}  else {
+			yyerror2(605, "semantic error", getNodeLabel(children[1]), children[1])
+		}
+	#	field := current_symbol_table.generate_local_Field(PointerType(), item)
+	#	current_symbol_table.addField(field)
+	end
+	
+	
+initially(ch)
+	self$node.initially("ident", ch)
+	value := children[1].string
+end
+
+class next_node : node ()
+initially(ch)
+	self$node.initially("next", ch)
+end
+
+class Break_node : node ()
+initially(ch)
+	self$node.initially("Break", ch)
+end
+
+class Paren_node : node ()
+initially(ch)
+	self$node.initially("Paren", ch)
+end
+
+class Brace_node : node ()
+initially(ch)
+	self$node.initially("Brace", ch)
+end
+
+class Brack_node : node ()
+initially(ch)
+	self$node.initially("Brack", ch)
+end
+
+class Subscript_node : node ()
+initially(ch)
+	self$node.initially("Subscript", ch)
+end
+
+class Pdco_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("Pdco" || number, ch)
+end
+
+class invoke_node : node ()
+	method typeCheck()
+		local
+			referencePackage,
+			referenceObject,
+			referenceMethod
+			
+		if type(children[1]) ?? "packageref" then { #package reference
+			referencePackage := children[1].referencePackage
+			referenceObject := children[1].referenceObject
+		} else if type(children[1]) ?? "field" then {
+			if type(children[1].children[3]) == "token" then {
+				referenceObject := children[1].referenceObject
+				
+				referenceMethod := children[1].referenceMethod
+			} else { 
+				
+			}
+		}
+	end
+initially(ch)
+	self$node.initially("invoke", ch)
+end
+
+class invocationnode : node ()
+initially(ch)
+	self$node.initially("invocationnode", ch)
+end
+
+#use setCurrentTable()
+class field_node : node ()
+	local
+		referencePackage,
+		referenceObject,
+		referenceMethod
+		
+	method makeSymbolTable() 
+		local
+			oldSymbolTable,
+			field,
+			newField,
+			child
+			
+		write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_symbol_table := setCurrentTable()
+		oldSymbolTable := current_symbol_table
+		if type(children[1]) ?? "ident" then { #ident
+	#------------------------------------------------------------------
+			current_symbol_table := current_symbol_table.root()
+			if \locate.packagename then current_symbol_table := current_symbol_table.getTable(locate.packagename)
+			if \locate.objectname then current_symbol_table := current_symbol_table.getTable(locate.objectname)
+			field := current_symbol_table.getField(getNodeLabel(children[3]))
+			newField := oldSymbolTable.generate_local_Field(PointerType(), field)
+	#-------------------------------------------------------------------
+			oldSymbolTable.addField(newField)
+		} else {
+			
+		}
+		
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.makeSymbolTable(locate)
+			}
+		}
+		current_symbol_table := oldSymbolTable
+	end 
+	
+	method typeCheck() 
+		local
+			assignmentFlag,
+			child
+		
+		if \children then {
+			every child := !children do {
+				if type(child) ?? "node" then child.typeCheck()
+			}
+			
+			if locate.codeblocktype == "assign" then assignmentFlag := "true"
+			
+			if type(children[3]) ?? "token" then { # IDENT
+				child := getNodeLabel(children[3])
+				if \child then { # IDENT found
+					current_symbol_table := setCurrentTable()
+					referenceObject := locate.
+					refLoc := locate
+					if /refLoc then refLoc := locate
+					
+					if \scopeCheck(locate, refLoc, child, assignmentFlag, children[3]) then {
+						referencePackage := locate.packagename
+						referenceObject := locate.objectname
+						referenceMethod := locate.methodname
+					}
+				} else {
+					yyerror2(611, "Scope Error", child, children[3])
+				}
+			} else { #package reference
+				refLoc := children[3].refLoc
+			}
+		}
+	end
+initially(ch)
+	self$node.initially("field", ch)
+end
+
+class keyword_node : node ()
+initially(ch)
+	self$node.initially("keyword", ch)
+end
+
+class While_node : node ()
+	local
+		number
+
+initially(n, ch)
+number := n
+	self$node.initially("While" || number, ch)
+end
+
+class Until_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("until" || number, ch)
+end
+
+class Every_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("every" || number, ch)
+end
+
+class Repeat_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("repeat" || number, ch)
+end
+
+class Return_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("return" || number, ch)
+end
+
+class Suspend_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("suspend" || number, ch)
+end
+
+class If_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("if" || number, ch)
+end
+
+class Case_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("case" || number, ch)
+end
+
+class caselist_node : node ()
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(n, ch)
+	self$node.initially("Caselist", ch)
+end
+
+class cclause_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("cclause" || number, ch)
+end
+
+class exprlist_node : node ()
+initially(ch)
+	self$node.initially("exprlist", ch)
+end
+
+class pdcolist_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("pdcolist" || number, ch)
+end
+
+class intlit_node : node ()
+	local
+		field
+		
+	method makeSymbolTable()
+		field := current_symbol_table.generate_local_Field(IntegerType())
+		field.value := value
+		current_symbol_table.addField(field)
+		nodeType := field.typ
+	end
+	
+	method uniconCode()
+		ucode := children[1].string
+		return ucode
+	end
+	
+initially(ch)
+	self$node.initially("intlit", ch)
+	value := integer(children[1].string)	
+end
+
+class reallit_node : node ()	
+	local
+		field
+		
+	method makeSymbolTable()
+		field := current_symbol_table.generate_local_Field(RealType())
+		field.value := value
+		current_symbol_table.addField(field)
+		nodeType := field.typ
+	end
+	
+	method uniconCode()
+		ucode := children[1].string
+		return ucode
+	end
+initially(ch)
+	self$node.initially("reallit", ch)
+	value := real(children[1].string)	
+end
+
+class stringlit_node : node ()
+	local
+		field,
+		addr
+		
+	method makeSymbolTable()
+		field := current_symbol_table.generate_local_Field(StringType())
+		field.value := value
+		address := field.address
+		current_symbol_table.addField(field)
+		nodeType := field.typ
+	end
+	
+	method uniconCode()
+		ucode := children[1].string
+		return ucode
+	end
+initially(ch)
+	self$node.initially("stringlit", ch)
+	value := children[1].string	
+end
+
+class csetlit_node : node ()
+		local
+		field
+		
+	method makeSymbolTable()
+		field := current_symbol_table.generate_local_Field(CSetType())
+		field.value := value
+		current_symbol_table.addField(field)
+		nodeType := field.typ
+	end
+	
+	method uniconCode()
+		ucode := children[1].string
+		return ucode
+	end
+initially(ch)
+	self$node.initially("csetlit", ch)
+	value := cset(children[1].string)	
+end
+
+class colon_node : node ()
+initially(ch)
+	self$node.initially("colon", ch)
+end
+
+class pcolon_node : node ()
+initially(ch)
+	self$node.initially("pcolon", ch)
+end
+
+class mcolon_node : node ()
+initially(ch)
+	self$node.initially("mcolon", ch)
+end
+
+class compound_node : node ()
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				ucode ||:= child.string
+			} else {
+				ucode ||:= child
+			}	
+			if n = 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+initially(ch)
+	self$node.initially("compound", ch)
+end
+
+class error_node : node ()
+initially
+	
+end

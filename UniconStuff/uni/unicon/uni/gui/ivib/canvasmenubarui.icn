@@ -1,0 +1,29 @@
+#
+# $Id: canvasmenubarui.icn,v 1.2 2006-07-09 23:43:12 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+
+
+class CanvasMenuBarUI : BasicCanvasComponentUI()
+   method create_canvas_component(canvas)
+      local t, t1
+      t := CanvasMenuBar()
+      t.set_pos(0, 0)
+      t1 := CanvasMenu()
+      t1.set_name(canvas.get_new_name(t1.name))
+      t1.set_label("Edit me")
+      t.add(t1)
+      t.w_default := t.h_default := 1
+      return t
+   end
+
+   initially()
+      self.BasicCanvasComponentUI.initially("Menu", 
+                                            "MenuBar",
+                                            $include "icon/icn9.icon"
+                                            )
+end

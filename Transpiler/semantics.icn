@@ -1,0 +1,598 @@
+
+$define TAB "  "
+$define WORD 64
+
+global
+	label_count,
+	constant_count,
+	global_count,
+	immidiate_count,
+	local_count,
+	object_count
+	
+class Address()
+	local
+		region,
+		offset
+	
+	method to_string()
+		return "<" || region || ", " || offset || ">"
+	end
+initially(reg, off)
+	region := reg
+	offset := off
+end
+
+class Field_Ref()
+	local
+		locate,
+		ident, 
+		access, 
+		invoc,
+		label,
+		value,
+		address,
+		typ,
+		reference
+	
+	method to_string()
+		local
+			str
+			
+		str := \label | \ident | ""
+	#	write("---- ", invoc, " ----")
+		if \invoc then str ||:= "()"
+		str ||:= " [" || access || "]"
+		if \value then str ||:= "(" || value || ")"
+		if \address then str ||:= address.to_string() 
+		if \typ then str ||:= " " || typ.to_string()
+		if \reference then str ||:= " ref: " || reference.to_string()
+		return str
+	end
+	
+initially(l, i, a, t, addr)
+	if \l then locate := l
+	if \i then ident := i
+	if \a then access := a
+	if \t then typ := t
+#	if \addr then address := addr
+	label := ident #makeLabel(locate, ident)
+end
+
+class SymbolTable()
+	local
+		depth,
+		ident,
+		parent,
+		symTable,
+		scope,
+		count
+	#	labels,
+	#	constants,
+	#	globals,
+	#	immidiate,
+	#	locals,
+	#	objects
+		
+	method createSymbolTable(id, sc)
+		id ||:= "_Table"
+	#	write("making symbol table: ", id, " in ", ident, " scope: ", sc, " depth: ", depth)
+		symTable[id] := SymbolTable(id, self, sc, depth + 1)
+	#	write(self.to_string())
+	end
+	
+	method generate_instruction(opcode, address1, address2, address3)
+		return [TC_code(opcode, address1, address2, address3)]
+	end
+
+	method generate_label()
+		local
+			id,
+			addr
+		
+		id := getid()
+		addr := Address("lab" || id, label_count)
+		label_count +:= 1
+		return addr
+	end
+	
+	method generate_constant()
+		local
+			addr
+		
+		addr := Address("const", constant_count)
+		constant_count +:= 1
+		return addr
+	end
+	
+	method generate_global()
+		local
+			addr
+
+		addr := Address("glob", global_count)
+		global_count+:= 1
+		return addr
+	end
+	
+	method generate_immidiate()
+		local
+			addr
+
+		addr := Address("imm" , immidiate_count)
+		immidiate_count +:= 1
+		return addr
+	end
+	
+	method generate_local()
+		local
+			addr
+
+		addr := Address("loc" , local_count)
+		local_count +:= 1
+		return addr
+	end
+	
+	method generate_object()
+		local
+			addr
+
+		addr := Address("object" , object_count)
+		object_count +:= 1
+		return addr
+	end
+	
+	method generate_local_Field(typ, reference)
+		local
+			addr,
+			field
+			
+		field := Field_Ref(&null, "local$" || local_count, "local", typ)
+		field.address := generate_local()
+		if \reference then field.reference := reference
+		return field
+	end
+	
+	method generate_super_Field(tempfield, typ, reference)
+		local
+			addr,
+			field
+			
+		field := Field_Ref(&null, "Super", "object", typ)
+		field.address := tempfield.address
+		if \reference then field.reference := reference
+		return field
+	end
+	
+	method getField(id)
+		return symTable[id]
+	end
+	
+	method getTable(id)
+		local
+			table
+		
+		table := id || "_Table"
+	#	write("Searching for: " || table || " in " || ident)
+		return symTable[table]
+	end
+	
+	method addField(field, words)
+		symTable[field.ident] := field  
+	end
+	
+	method removeField(fieldname)
+		delete(symTable, fieldname)
+	end
+	
+	method inScope(id)
+		local
+			item
+		
+	#	write(id)
+		every item := key(symTable) do {
+			if type(symTable[item]) ?? "Field_Ref" then {
+				if id == \symTable[item].ident then return symTable[item]
+			}
+		}
+	#	write("current table:inScope: ", ident)
+		if \parent then {
+			return parent.inScope(id)
+		}
+	end
+	
+	method root()
+		if \parent then {
+			return parent.root()
+		} else {
+			return self
+		}
+	end
+	
+	method to_string() 
+		local
+			str,
+			item
+		
+		str := ""
+		every 1 to depth do str ||:= TAB
+		str ||:= ident || " [" || scope || "] " || *symTable || "\n"
+		every item := key(symTable) do {
+		#	write(type(symTable[item]))
+			if type(symTable[item]) == "SymbolTable__state" then {
+				str ||:= symTable[item].to_string()
+			} else if type(symTable[item]) == "Field_Ref__state" then {
+				every 1 to depth + 1 do str ||:= TAB
+				str ||:= symTable[item].to_string() || "\n"
+			} 
+		}
+		return str
+	end
+	
+	method memoryList() 
+		local
+			item,
+			i,
+			mList,
+			subList
+		
+		mList := []
+		every item := key(symTable) do {
+			if type(symTable[item]) == "SymbolTable__state" then {
+				subList := symTable[item].memoryList()
+				if *subList > 0 then {
+					every i := !subList do put(mList, i)
+				}
+			} else if type(symTable[item]) == "Field_Ref__state" then {
+				put(mList, symTable[item])
+			} 
+		}
+		return mList
+	end
+	
+initially(id, p, sc, d)
+	depth := d
+	ident := id
+#	write(ident)
+	parent := p
+	scope := sc
+	symTable := table()
+	if /label_count then label_count := 0
+	if /constant_count then constant_count := 0
+	if /global_count then global_count := 0
+	if /immidiate_count then immidiate_count := 0
+	if /local_count then local_count := 0
+	if /object_count then object_count := 0
+	labels :=[]
+	constants := []
+	globals := []
+	immidiate := []
+	locals := []
+	objects := []
+end
+
+procedure getid()
+	static count
+	initial {
+		count := 0
+	}
+	return (count +:= 1)
+end
+
+procedure getNodeLabel(node)
+	if type(node) ?? "node" then {
+		return string(node.value)
+	} else if type(node) ?? "token" then {
+		return node.string
+	} else if type(node) == "string" then {
+		return node
+	} else {
+		return node
+	}
+end
+
+	#	t[608] := "package not found"
+	#	t[609] := "object not found"
+	#	t[610] := "function/method not found"
+	#	t[611] := "identifier not found"
+	#	t[612] := "identifier's access is not \'global\' or \'const\'"
+	#	t[613] := "\'const\' variables may not be changed"
+	#	t[614] := "identifier's access is not \'pubic\' or \'read\'"
+	#	t[615] := "\'read\' variables may not be changed"
+
+procedure methodScope(thisTable, currentLocation, referenceLocation, referenceLabel, assignmentFlag, token)
+	local
+		item
+	
+	if \referenceLocation.methodname then {
+		thisTable := thisTable.getTable(referenceLocation.methodname)
+			if \thisTable then { #found the method table
+				if referenceLocation.packagename == currentLocation.packagename &
+						referenceLocation.objectname == currentLocation.objectname &
+						referenceLocation.methodname ~== currentLocation.methodname then {# in the same method
+					item := thisTable.getField(referenceLabel)
+					if \item then { #item found
+						return item
+					} else { #not found
+						yyerror2(611, "Scope Error", &null, token)
+					}							
+				} else {  # is not in the same method
+					item := thisTable.getField(referenceLabel)
+					if \item then { #item found
+						if item.access := "public" | "read" then {
+							if \assignmentFlag then { # is used in an assignment
+								if item.access == "public" then { # may edit
+									return item
+								} else { #may not edit
+									yyerror2(615, "Scope Error", &null, token)
+								}
+							} else { # no assignmentFlag
+								return item
+							}
+						} else {
+							yyerror2(614, "Scope Error", &null, token)
+						}
+						return item
+					} else { #not found
+						yyerror2(611, "Scope Error", &null, token)
+					}					
+				}
+			} else { # did not find method table
+				yyerror2(610, "Scope Error", &null, token)
+			}
+		}
+end
+
+procedure objectScope(thisTable, currentLocation, referenceLocation, referenceLabel, assignmentFlag)
+	local
+		item
+	
+	if \referenceLocation.objectname then {
+		write(thisTable.to_string())	
+		thisTable := thisTable.getTable(referenceLocation.objectname)
+		if \thisTable then { #fouind the an object table
+			if referenceLocation.packagename == currentLocation.packagename &
+					referenceLocation.objectname == currentLocation.objectname then {# in the same object
+				if \referenceLocation.methodname then { # is in a method
+					return methodScope(thisTable, currentLocation, referenceLocation, referenceLabel, assignmentFlag)
+				} else { # is not in a method
+					item := thisTable.getField(referenceLabel)
+					if \item then { #item found
+						return item
+					} else { #not found
+						yyerror2(611, "Scope Error", &null, token)
+					}
+				}							
+			} else {  # is not in the same object
+				if \referenceLocation.methodname then { # is in a method
+					return methodScope(currentLocation, referenceLocation, referenceLabel, assignmentFlag, token)
+				} else { # is not in a method
+					item := thisTable.getField(referenceLabel)
+					if item.access == "public" | "read" then { #is accessable
+						if \assignmentFlag then { # is used in an assignment
+							if item.access == "public" then { # may edit
+								return item
+							} else { #may not edit
+								yyerror2(615, "Scope Error", &null, token)
+							}
+						} else { # no assignmentFlag
+							return item
+						}
+					} else { #is not accessable
+						yyerror2(614, "Scope Error", &null, token)
+					}
+				}			
+			}
+		} else { # did not find object table
+			yyerror2(609, "Scope Error", &null, token)
+		}
+	}
+end
+
+procedure scopeCheck(currentLocation, referenceLocation, referenceLabel, assignmentFlag, token)
+	local 
+		item,
+		thisTable
+		
+	if \referenceLabel then {
+		thisTable := current_symbol_table.root()
+		if /referenceLocation.packagename then { #is not in a package
+			item := thisTable.getField(referenceLabel)
+			if \item then { #item found
+				if item.access == "global" | "const" then { #is a global or constant
+					return item
+				} else { # not a global or constant
+					yyerror2(612, "Scope Error", &null, token)
+				}
+			} else { #no item found
+				write("scopeCheck: '", referenceLabel)
+				yyerror2(611, "Scope Error1", &null, token)
+			}
+		} else { #in a package
+			thisTable := thisTable.getTable(referenceLocation.packagename)
+			if \thisTable then { #package exists
+				if \referenceLocation.objectname then {# is in a object
+					return objectScope(thisTable, currentLocation, referenceLocation, referenceLabel, assignmentFlag)
+				} else { #not in an object
+					item := thisTable.getField(referenceLabel)
+					if \item then { #item found   "topical"  "global" "const"
+						if item.access == "global" | "const" then { #is accessable
+							if \assignmentFlag then { # is used in an assignment
+								if item.access == "global" then { # may edit
+									return item
+								} else { #may not edit
+									yyerror2(613, "Scope Error", &null, token)
+								}
+							} else { # no assignmentFlag
+								return item
+							}
+						} else { #is not accessable
+							yyerror2(612, "Scope Error", &null, token)
+						}
+					} else { #item not found
+						yyerror2(611, "Scope Error2", &null, token)
+					}
+				}
+			} else { # package does not exist
+				yyerror2(608, "Scope Error", &null, token)
+			}
+		}
+		yyerror2(611, "Scope Error", &null, token)
+	}
+end
+
+# needs to be revised
+#procedure getLiteralValue(node)
+#	return node.firstPass()
+#end
+
+#procedure makeLabel(loc, ident)
+#	local
+#		match,
+#		str
+		
+#	str := ""
+#	if \loc.filename then str ||:= "__" || loc.filename
+#	match := 0
+#	if \loc.objectname then {
+#		str ||:= "__" || loc.objectname
+#		if ident == loc.objectname then match := 1
+#	}
+#	if \loc.methodname then {
+#		str ||:= "__" || loc.methodname
+#		if ident == loc.methodname then match := 1
+#	}
+#	if match = 0 then str ||:= "__" || ident
+#	return str
+#end		generate_super_Field
+
+procedure printParseTable(tnode, depth)
+	local
+		child
+		
+	if \tnode then {
+		if type(tnode)[0:-5] == "state" then {
+			every 1 to depth do writes(TAB)
+			write(tnode.to_string())
+		}
+		depth +:= 1
+		if type(tnode) ?? "node" then {
+			if \tnode.children then {
+				every child := !tnode.children do {
+					if \child then printParseTable(child, depth)
+				}
+			}
+		}
+	}
+end
+
+global
+	labels,
+	constants,
+	globals,
+	immidiate,
+	locals,
+	objects
+	
+procedure makeMemoryBlocks(table)
+	local 
+		mList,
+		item
+		
+	labels := []
+	constants := []
+	globals := []
+	immidiate := []
+	locals := []
+	objects := []
+	mList := table.memoryList() 
+	# write("list size: ", *mList)
+	
+	every item := !mList do {
+		if \item & \item.address & type(item) == "Field_Ref__state" then {
+			case item.address.region of {
+				"lab" : {
+					if *labels < item.address.offset + 1 then {
+						every *labels to item.address.offset + 1 do put(labels, "empty")
+					}
+					labels[item.address.offset + 1] := item
+				}
+				"const": {
+					if *constants < item.address.offset + 1 then {
+						every *constants to item.address.offset + 1 do put(constants, "empty")
+					}
+					constants[item.address.offset + 1] := item
+				}
+				"glob": {
+					if *globals < item.address.offset + 1 then {
+						every *globals to item.address.offset + 1 do put(globals, "empty")
+					}
+					globals[item.address.offset + 1] := item
+				}
+				"imm": {
+					if *immidiate < item.address.offset + 1 then {
+						every *immidiate to item.address.offset + 1 do put(immidiate, "empty")
+					}
+					immidiate[item.address.offset + 1] := item
+				}
+				"loc": {
+					if *locals < item.address.offset + 1 then {
+						every *locals to item.address.offset + 1 do put(locals, "empty")
+					}
+					locals[item.address.offset + 1] := item
+				}
+				"object": {
+					if *objects < item.address.offset + 1 then {
+						every *objects to item.address.offset + 1 do put(objects, "empty")
+					}
+					objects[item.address.offset + 1] := item
+				}
+			#	default : write("something is lost")
+			}
+		}
+		
+	}
+	if *labels > 0 then {
+		write("lab:")
+		every item := !labels do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	if *constants > 0 then {
+		write("const:")
+		every item := !constants do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	if *globals > 0 then {
+		write("glob:")
+		every item := !globals do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	if *immidiate > 0 then {
+		write("imm:")
+		every item := !immidiate do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	if *locals > 0 then {
+		write("loc:")
+		every item := !locals do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	if *objects > 0 then {
+		write("object:")
+		every item := !objects do {
+			if type(item) == "string" then write(item)
+			else write("\t", item.to_string())
+		}
+	}
+	
+end
+

@@ -1,0 +1,103 @@
+#import Objects
+
+#procedure main()
+#	local sub, str, stack, scanObject, token, stop;
+	
+#	sub := _Sal_String("abcdefg12345")
+	
+#	stack := []
+#	scanObject := _Scan_Many(stack, 5)
+	
+#	sub.fetch(scanObject, stack)
+
+#	str := ""
+#	every token := !stack do {
+#		str ||:= sub.subject[token.start : token.finish]
+#	}
+	
+#	write("pos: ", sub.pos)
+#	write("result: ", str)
+	
+#	write("------------")
+#	sub.reset()
+#	stack := []
+#	scanObject := _Scan_Many(stack, "abcd")
+#	sub.pass(scanObject, stack)
+#	write("pos: ", sub.pos)
+	
+#	scanObject := _Scan_Many(stack)
+#	sub.fetch(scanObject, stack)
+	
+	
+#	str := ""
+#	every token := !stack do {
+#		str ||:= sub.subject[token.start : token.finish]
+#	}
+	
+#	write("pos: ", sub.pos)
+#	write("result: ", str)
+#end
+
+import Logic
+
+record room(name)
+record item(name)
+record food(name)
+record location(room, item)
+
+procedure main()
+	local
+		result,
+		kitchen,
+		dining,
+		table,
+		plate,
+		refrigerator,
+		stove,
+		apple,
+		orange,
+		logic,
+		q;
+	
+	logic := Logic::_Scoel_Logic()	
+	
+	kitchen := room("Kitchen")  #  kitchen :- room("Kitchen") creates the room predicate and stores it.
+	dining := room("Dining")
+	table := item("Table")
+	plate := item("Plate")
+	refrigerator := item("Refrigerator")
+	stove := item("Stove")
+	apple := food("apple")
+	orange := food("orange")
+	
+	x := &null
+	
+	logic.addPredicate(kitchen)
+	logic.addPredicate(dining)
+	logic.addPredicate(table)
+	logic.addPredicate(plate)
+	logic.addPredicate(refrigerator)
+	logic.addPredicate(stove)
+	logic.addPredicate(table)
+	logic.addPredicate(apple)
+	logic.addPredicate(orange)
+	
+	logic.addPredicate(location(dining, table))  #  :- location(dining, table) creates location predicate and stores it
+	logic.addPredicate(location(dining, plate))
+	logic.addPredicate(location(kitchen, refrigerator))
+	logic.addPredicate(location(kitchen, stove))
+	logic.addPredicate(location(dining, apple))
+	logic.addPredicate(location(kitchen, orange))
+	
+#	q1 := location(kitchen)
+#	q2 := food()
+	
+#	ruleDef := [q1, q2]
+	ruleDef := [location(dining, x), food()]
+	write(x)
+	rule := logic.makeRule(ruleDef)
+	result := rule.forwardProcess()
+	write("\nFinal Result: ", logic.listContents(result))
+	
+	
+end

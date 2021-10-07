@@ -1,0 +1,114 @@
+import util
+import gui
+$include "guih.icn"
+
+#
+# An example of a custom TableContent, which shows checkboxes in one
+# column.
+#
+class CustomTableContent : TableContent()
+   method get_line_height()
+      return 20
+   end
+
+   method draw_cell(row, col, cx, cy, cw, ch)
+      local d, i
+      d := contents[row, col]
+      if col = 1 then {
+         i := if d == "y" then img_style("box_down") else img_style("box_up")
+         DrawImageEx(self.cbwin, cx, cy - img_height(i)/2 , i)
+      } else {
+         left_string(self.cbwin, cx, cy, contents[row,col])
+      }
+   end
+
+   method mouse_up()
+      local l
+      if l := get_line_under_pointer() then {
+         contents[l, 1] := if contents[l, 1] == "y" then "n" else "y"
+         contents_changed()
+      }
+   end
+
+   initially()
+      self.TableContent.initially()
+      connect(self, "mouse_up", MOUSE_RELEASE_EVENT)
+end
+
+class Untitled : Dialog(t)
+   method component_setup()
+      self.setup()
+   end
+
+   method end_dialog()
+   end
+
+   method tbl_event(e)
+      #write("tbl event ", e.get_type()) 
+   end
+
+   method init_dialog()
+      local data
+      data := [["y",1040, "Smith, R"], ["n",1049, "Jones, L"], ["n",984, "Wilson, R"], ["y",3789, "Mainwaring, C"],
+               ["y",849, "Smith, J"], ["n",4857, "Parlett, R"], ["n",298, "Williams, J"], ["n",938, "Higgins, A"],
+               ["n",938, "Clinton, B"], ["y",874, "Major, J"], ["n",2894, "Nixon, R"], ["n",398, "Blair, A"],
+               ["n",939, "Napoleon, B"], ["y",398, "Amin, I"], ["n",938, "Rogers, R"], ["n",928, "Smith, A"]]
+
+      t.set_contents(data)
+   end
+
+   method on_table(ev)
+      #write("Table event:", ev.to_string(1))
+   end
+
+   method quit_action(ev)
+      exit(0)
+   end
+
+   method setup()
+      local table_column_1, table_column_2, table_column_3, text_button_1
+      self.set_attribs("size=300,238", "resize=on")
+      t := Table("accel=t", "select_none")
+      t.connect(self, "on_table")
+      t.set_table_content(CustomTableContent())
+      t.connect(self, "tbl_event")
+      t.set_pos("50%", "10")
+      t.set_size("100%-40", "100%-75")
+      t.set_align("c", "t")
+      t.set_contents([])
+      table_column_1 := TableColumn()
+      table_column_1.set_label("Col1")
+      table_column_1.set_internal_alignment("l")
+      table_column_1.set_column_width(50)
+      t.add_column(table_column_1)
+      table_column_2 := TableColumn()
+      table_column_2.set_label("Col2")
+      table_column_2.set_internal_alignment("l")
+      table_column_2.set_column_width(75)
+      t.add_column(table_column_2)
+      table_column_3 := TableColumn()
+      table_column_3.set_label("Col3")
+      table_column_3.set_internal_alignment("l")
+      table_column_3.set_column_width(75)
+      t.add_column(table_column_3)
+      self.add(t)
+      text_button_1 := TextButton("accel=q")
+      text_button_1.set_pos("50%", "100%-40")
+      text_button_1.set_align("c", "t")
+      text_button_1.connect(self, "quit_action", ACTION_EVENT)
+      text_button_1.set_label("Quit")
+      text_button_1.set_internal_alignment("c")
+      self.add(text_button_1)
+   end
+
+   initially
+      self.Dialog.initially()
+end
+
+procedure main()
+   local d
+   d := Untitled()
+   d.show_modal()
+end
+
+

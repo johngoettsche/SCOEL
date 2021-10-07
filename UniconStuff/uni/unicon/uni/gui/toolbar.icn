@@ -1,0 +1,34 @@
+#
+# $Id: toolbar.icn,v 1.4 2005-06-11 14:29:59 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This class is a {Panel} which may have {Component}s added to it
+# in the normal way.
+#
+# NB - the tooltip functionality previously found in this class is
+# now part of the Dialog class.
+#
+class ToolBar : Panel()
+   method display(buffer_flag)
+      EraseRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      if \self.draw_border_flag then
+         DrawRaisedRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      every (!self.children).display(1)
+      if /buffer_flag then
+         CopyArea(self.cbwin, self.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+   end
+
+   initially(a[])
+      self.Panel.initially()
+      set_fields(a)
+end

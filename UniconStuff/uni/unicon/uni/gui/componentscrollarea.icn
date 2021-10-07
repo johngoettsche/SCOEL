@@ -1,0 +1,145 @@
+#
+# $Id: componentscrollarea.icn,v 1.3 2006-07-09 23:43:07 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+class ComponentScrollAreaView : Component(inner, 
+                                          inner_w,
+                                          inner_h,
+                                          temp_win)
+   method get_cwin_reference()
+      return temp_win
+   end
+
+   method get_cbwin_reference()
+      return temp_win
+   end
+
+   method get_x_reference()
+      return x - (\parent.get_areax() | 0)
+   end
+
+   method get_y_reference()
+      return y - (\parent.get_areay() | 0)
+   end
+
+   method find_focus()
+      return in_region() & self.Component.find_focus()
+   end
+
+   method fire_icon_events_on_mouse(p, e)
+      return in_region() & self.Component.fire_icon_events_on_mouse(p, e)
+   end
+
+   method handle_event(e)
+      if e === (-12 | &lpress | &rpress | &mpress) & not in_region() then
+         return
+      inner.handle_event(e)
+   end
+
+   method resize()
+      local twidth, theight
+      self.Component.resize()
+      twidth := inner_w + WAttrib(self.cwin, "width")
+      theight := inner_h + WAttrib(self.cwin, "height")
+      WAttrib(temp_win, "size=" || twidth || "," || theight)
+   end
+
+   method display(buffer_flag)
+      local W
+      if \self.transparent then{
+        inner.display(1)
+        return
+	}
+
+      W := if /buffer_flag then self.cwin else self.cbwin
+      EraseArea(temp_win, x, y, w, h)
+      inner.display(1)
+      CopyArea(temp_win, W, x, y, w, h, x, y)
+   end
+
+   method child_validated(c)
+      if /self.transparent then
+         CopyArea(temp_win, self.cwin, x, y, w, h, x, y)
+      self.Component.child_validated(c)
+   end
+
+   method set_inner(inner)
+      self.inner := inner
+      inner.set_pos(0, 0)
+      inner_w := integer(inner.w_spec) | 
+         fatal("Inner component of ComponentScrollArea must have absolute width")
+      inner_h := integer(inner.h_spec) | 
+         fatal("Inner component of ComponentScrollArea must have absolute height")
+      add(inner)
+   end
+
+   method inner_resized()
+      inner_w := inner.w
+      inner_h := inner.h
+   end
+
+   method init()
+      self.temp_win := (WOpen ! (["canvas=hidden"] ||| self.attribs))
+      self.Component.init()
+   end
+
+   method finally()
+      self.Component.finally()
+      WClose(self.temp_win)
+      self.temp_win := &null
+   end
+
+   initially()
+      self.Component.initially()
+end
+
+#
+# This class allows an arbitrary Component to be placed within 
+# the ScrollArea.  The component is set with the {set_inner()}
+# method, and it must have an absolute size, ie not specified
+# in percentage terms.
+#
+class ComponentScrollArea : ScrollArea()
+   method set_inner(inner)
+      view.set_inner(inner)
+   end
+
+   method inner_resized()
+      view.inner_resized()
+      compute_and_invalidate()
+   end
+
+   method get_subject_width()
+      return view.inner_w 
+   end
+
+   method get_subject_height()
+      return view.inner_h
+   end
+
+   method get_subject_vertical_increment()
+      return 10
+   end
+
+   method get_subject_horizontal_increment()
+      return 10
+   end
+
+   method refresh(redraw)
+      self.ScrollArea.refresh(redraw)
+      view.resize()
+   end
+
+   method create_view()
+      return ComponentScrollAreaView()
+   end
+end

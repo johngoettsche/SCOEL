@@ -1,0 +1,15 @@
+procedure printParseTable(tnode, depth)
+	#write(type(tnode))
+	
+	#if type(tnode) == "string" then write(tnode)
+	#write(type(tnode)[0:-5])
+	
+	if type(tnode)[0:-5] == "state" then {
+		every 1 to depth do writes("  ")
+		write(tnode.to_string())
+	} #else write(tnode)
+	depth +:= 1
+	if type(tnode) ~== "token__state" & type(tnode) ~== "string" then 
+		every child := \!tnode.children do 
+			printParseTable(child, depth)
+end

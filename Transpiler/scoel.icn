@@ -1,0 +1,151 @@
+
+global 
+	uniconTrans,
+	files,
+	current_symbol_table
+#	tableOfGlobalMethods
+
+procedure main(args)
+	local
+		root,
+		arg,
+		current_codeBlock,
+		file,
+		filename,
+		outputfile,
+		loc
+		
+	uniconTrans := 0
+	files := []
+#	write(image(args))   
+	every arg := !args do { # process arguments
+		if arg[1] == "-" then {
+			case arg of {
+				"-U" :  uniconTrans := 1
+				"-u" :  uniconTrans := 1
+				default :  simpleTerminalError("Argument Error: argument " || arg || " is not available", arg)
+			}
+		} else if *arg < 6 | not (arg[-6:0] == ".scoel") then {
+			arg := arg || ".scoel"
+			put(files, arg)
+		} else {
+			put(files, arg)
+		}
+	}
+
+	tokens := []
+	current_codeBlock := "global"
+	current_symbol_table := SymbolTable("Global", &null, "global", 1)
+	
+#	createGlobalMethods(current_symbol_table)
+#	write(current_symbol_table.to_string())
+	
+	every file := !files do {
+	#	write(file)
+		yyfilename := file
+		yyin := open(yyfilename, "r")
+		yylex_reinit()
+		yyparse()
+		root := valstk[1]
+	#	write(*root)
+	#	if \root then write(root.to_string())
+		printParseTable(root, 0)
+		if \root then { # change to check for existing package
+			yyfilename ? filename := tab(upto('.'))
+			write(filename)
+			loc := location(filename)
+			current_package := filename
+			root.makeSymbolTable(loc)
+		}
+		current_symbol_table := current_symbol_table.root()
+	#	write(current_symbol_table.to_string())
+		
+		#Translation
+	#	write("uniconTrans = ", uniconTrans);
+		if uniconTrans > 0 & \root then { # create Unicon File
+			outputfile := filename || ".icn"
+			out := open(outputfile, "w")
+			write(out, createUniconFile(root))
+			close(out)
+		} else if \root then { #create Icon File
+			write("got here");
+			outputfile := filename || ".icn"
+			out := open(outputfile, "w")
+			write(out, createIconFile(root))
+			close(out)
+		}
+	}
+#	write("#####################################")
+	current_symbol_table := current_symbol_table.root()
+	write(current_symbol_table.to_string())
+#	write(current_symbol_table.ident)
+	
+#	makeMemoryBlocks(current_symbol_table)
+	
+	
+end
+
+procedure createGlobalMethods(symTable)
+	local 
+		t,
+		item,
+		loc,
+		field
+	initial {
+		t := table()
+		t["Object"]:= SystemClassType()
+		t["String"]:= SystemClassType()
+		t["List"]:= SystemClassType()
+		t["Set"]:= SystemClassType()
+		t["Table"]:= SystemClassType()
+		
+		t["read"] := FunctionType()
+		t["type"] := FunctionType()
+		t["write"] := FunctionType()
+		
+		t["c_any"] := PatternType()
+		t["c_many"] := PatternType()
+		t["c_upto"] := PatternType()
+		t["f_any"] := PatternType()
+		t["f_many"] := PatternType()
+		t["f_upto"] := PatternType()
+		t["F_any"] := PatternType()
+		t["F_many"] := PatternType()
+		t["F_upto"] := PatternType()
+		t["p_any"] := PatternType()
+		t["p_many"] := PatternType()
+		t["p_upto"] := PatternType()
+		t["P_any"] := PatternType()
+		t["P_many"] := PatternType()
+		t["P_upto"] := PatternType()
+		t["t_any"] := PatternType()
+		t["t_many"] := PatternType()
+		t["t_upto"] := PatternType()
+	}
+	
+	every item := key(t) do {
+	#	write("function: ",item, "() is a ", t[item])
+		loc := location("Global", &null, &null, &null, "__System")
+		field := Field_Ref(loc, item, "global", t[item])
+		field.address := symTable. generate_global()
+		field.invoc := "function"
+		symTable.addField(field, field.typ.words)
+	}
+end
+
+procedure createUniconFile(root)
+	local
+		str
+	
+	str := root.uniconCode()
+	return str
+end
+
+procedure createIconFile(root)
+	local
+		str
+	
+	str := root.iconCode()
+	return str
+end
+

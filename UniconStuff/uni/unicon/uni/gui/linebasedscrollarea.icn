@@ -1,0 +1,194 @@
+#
+# $Id: linebasedscrollarea.icn,v 1.5 2006-01-16 00:32:12 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This is a scroll area where the objects to be displayed are lines of
+# a fixed height.
+#
+class LineBasedScrollArea : DrawScrollArea(
+   line_height              # Height of one line
+   )
+
+   #
+   # The virtual x position of a line in the canvas.
+   #
+   method get_left_pos()
+      return (self.view.x - (\self.hsb).get_value()) | self.view.x
+   end
+
+   #
+   # Initialize the line_height variable 
+   #
+   # @p
+   method init()
+      self.ScrollArea.init()
+      self.line_height := get_line_height()
+   end
+
+   #
+   # Get the number of the first visible line
+   #
+   method get_first_line()
+      local t
+      t := get_areay()
+      if t % line_height = 0 then
+         return t / line_height + 1
+      else
+         return t / line_height + 2
+   end
+   
+   #
+   # The maximum number of lines which can be displayed  in the area
+   #
+   method get_max_lines()
+      return self.view.h / line_height
+   end
+
+   #
+   # The index of the last line in the area, or zero if there are no
+   # lines.
+   #
+   method get_last_line()
+      return self.get_first_line() + self.get_curr_lines() - 1
+   end
+
+   #
+   #
+   # Present number of lines on screen
+   #
+   method get_curr_lines()
+      return (\self.vsb).get_page_size() / line_height | get_line_count()
+   end
+
+   #
+   # Goto line, horiz
+   #
+   # @p
+   method goto_pos(line, horiz)
+      (\self.vsb).set_value(line_height * (\line - 1))
+      (\self.hsb).set_value(\horiz)
+      self.invalidate()
+   end
+
+   #
+   # Ensure the given row is visible
+   #
+   method ensure_row_visible(row) 
+      local i, j
+      i := get_first_line()
+      j := get_last_line()
+      if row < i then
+         goto_pos(row)
+      else if row > j then
+         goto_pos(i - j + row)
+   end
+
+   #
+   # Return the line under the current x, y cursor, or fail if not over a line.
+   #
+   method get_line_under_pointer()
+      local l
+      if view.in_region() then {
+         l := (&y - self.view.y) / self.line_height + self.get_first_line()
+         if l <= self.get_last_line() then
+            return l
+      }
+   end
+
+   method draw(subject_x, subject_y, vx, vy, vw, vh)
+      local first_line, last_line, xp, yp, i
+
+      #
+      # Which lines to draw
+      #
+      first_line := get_first_line()
+      last_line := get_last_line()
+      last_line >:= get_line_count()
+
+      #
+      # Where to draw them
+      #
+      yp := vy + self.line_height / 2
+
+      #
+      # Left offset
+      #
+      xp := vx - subject_x
+
+      #
+      # Write the lines
+      #
+      every i := first_line to last_line do {
+         draw_line(xp, yp, i)
+         yp +:= self.line_height
+      }
+   end
+
+   #
+   #  Reset the height of the scroll area so it is exactly the 
+   #  line_height * number of lines and that there is no extra space 
+   #  or gap at the bottom of the scroll area. 
+   #  This allows correct positioning when hitting page up/down or the scroll
+   #  bar. Without this, lines are skipped while scrolling unless the
+   #  scroll area height is an exact multiple of font height.
+   #  
+   method reset_height()
+   local ml := 1
+
+      if /self.vsb then return
+
+      #
+      # For horizontal scroll bar & vsb need to reset the view.h to
+      # to initial min height & width to recalculate max_lines 
+      # 
+      ml := self.get_max_lines() | 1
+      line_height :=  self.get_line_height()
+      self.view.h := ml * line_height 
+
+      view.set_size(self.view.w, self.view.h)
+      view.resize()
+   end 
+
+   #
+   # This method is overridden by the subclass to draw the given 
+   # line at the given position, into the buffer window cbwin.
+   # @param xp  The left position it should be drawn at
+   # @param yp   The y position it should be drawn at
+   # @param i   The line number to draw
+   #
+   abstract method draw_line(xp, yp, i)
+
+   #
+   # This method is overridden by the subclass to return the
+   # line height.
+   #
+   abstract method get_line_height()
+
+   #
+   # This method is overridden by the subclass to return the
+   # number of lines.
+   #
+   abstract method get_line_count()
+
+   method get_subject_height()
+      return get_line_count() * self.line_height
+   end
+
+   method get_subject_vertical_increment()
+      return self.line_height
+   end
+
+   method get_subject_horizontal_increment()
+      return TextWidth(self.cwin, "m")
+   end
+end

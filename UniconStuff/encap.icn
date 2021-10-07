@@ -1,0 +1,35 @@
+procedure main()
+	obj := object("hello", 1966)
+	write(obj.a)
+	write(obj.b)
+	#write(obj.c)
+	obj.test()
+end
+
+class object(a, b)
+	method test()
+		#every txt := !methods(self) do write(txt)
+		#every txt := !membernames(self) do write(txt)
+		#every txt := !methodnames(self) do write(txt)
+		#txt := image(self)
+		#txt ? {
+		#	result := tab(many(&letters))
+		#}
+		#write(result)
+		
+		local txt, result
+		
+		txt := image(self)
+		txt ? {
+			tab(many(&letters))
+			tab(&pos + 1)
+			result := tab(upto("("))
+		}
+		write(result)
+	end
+
+initially(a1, b1)
+	a := a1
+	b := b1
+	c := a || b
+end

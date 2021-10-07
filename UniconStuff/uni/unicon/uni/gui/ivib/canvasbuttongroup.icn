@@ -1,0 +1,30 @@
+#
+# $Id: canvasbuttongroup.icn,v 1.2 2006-07-09 23:43:11 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+import gui
+
+
+############################################################################
+#
+# Class to represent a ButtonGroup on the canvas.
+#
+class CanvasButtonGroup : Group : ButtonGroup()
+   method dup()
+      local c
+      c := CanvasButtonGroup()
+      self$Group.dup(c)
+      return c
+   end
+
+   initially
+      self$Group.initially()
+      self$ButtonGroup.initially()
+      self.class_name := "ButtonGroup"
+      self.import_name := "gui"
+      self.name := "button_group"
+end

@@ -1,0 +1,204 @@
+class TypeInfo()
+	local
+		words,
+		basetype
+		
+	method to_string()
+		return string(basetype) | "unknown"
+	end
+initially()
+
+end
+
+class SystemType : TypeInfo()
+	local
+		parameters
+		
+initially(p)
+	parameters := p
+	basetype := "system"
+	words := 2
+end
+
+class PackageType : TypeInfo ()
+
+initially()
+	basetype := "package"
+	words := 2
+end
+
+class NullType : TypeInfo ()
+
+initially()
+	basetype := "null"
+	words := 2
+end
+
+class CollectionType : TypeInfo ()
+
+initially()
+	basetype := "Collection"
+	words := 2
+end
+
+class TableType : CollectionType ()
+
+initially()
+	basetype := "Table"
+	words := 2
+end
+
+class ListType : CollectionType ()
+
+initially()
+	basetype := "List"
+	words := 2
+end
+
+class SetType : CollectionType ()
+
+initially()
+	basetype := "Set"
+	words := 2
+end
+
+class SystemClassType : SystemType()
+	local
+		parameters
+		
+initially()
+	basetype := "system_class"
+	words := 2
+end
+
+
+class MethodType : TypeInfo()
+	local
+		parameters
+		
+initially()
+	basetype := "method"
+	words := 2
+end
+
+class ConstructorType : TypeInfo()
+	local
+		parameters
+		
+initially(p)
+	parameters := p
+	basetype := "constructor"
+	words := 2
+end
+
+class InvocableType : SystemType()
+	local
+		parameters
+		
+initially()
+	basetype := "invocable"
+	words := 2
+end
+
+class QueryType : SystemType ()
+
+initially()
+	basetype := "query"
+	words := 2
+end
+
+class PatternType : SystemType ()
+
+initially()
+	basetype := "pattern"
+	words := 2
+end
+
+class ClassType : TypeInfo()
+	local
+		parameters
+		
+initially(p)
+	parameters := p
+	basetype := "class"
+	words := 2
+end
+
+class StringType : SystemType ()
+
+initially()
+	basetype := "String"
+	words := 2
+end
+
+class CSetType : SystemType ()
+
+initially()
+	basetype := "cset"
+	words := 2
+end
+
+class NumericType : SystemType ()
+
+initially()
+	basetype := "Numeric"
+	words := 2
+end
+
+class IntegerType : NumericType ()
+
+initially()
+	basetype := "Integer"
+	words := 2
+end
+
+class RealType : NumericType ()
+
+initially()
+	basetype := "Real"
+	words := 2
+end
+
+class SuperType : TypeInfo()
+	local
+		parameters
+		
+initially(p)
+	parameters := p
+	basetype := "super"
+	words := 2
+end
+
+class RecordType : SystemType()
+	local
+		parameters
+		
+initially(p)
+	parameters := p
+	basetype := "record"
+	words := 2
+end
+
+class FilenameType : StringType ()
+initially()
+	basetype := "filename"
+	words := 2
+end
+
+class FunctionType : SystemType ()
+initially()
+	basetype := "function"
+	words := 2
+end
+
+class PointerType : TypeInfo ()
+initially()
+	basetype := "pointer"
+	words := 2
+end
+
+class ConstantType : TypeInfo ()
+initially()
+	basetype := "Constant"
+	words := 2
+end

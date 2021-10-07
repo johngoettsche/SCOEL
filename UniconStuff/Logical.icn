@@ -1,0 +1,282 @@
+#record room(name)
+#record item(name)
+#record food(name)
+record location(room, item)
+record door(current, adjoiner)
+
+class room()
+	local
+		name;
+	
+	method enter()
+		write("You have entered the ", name)
+	end
+initially(n)
+	name := n
+end
+
+class item()
+	local
+		name,
+		size;
+		
+initially(n, s)
+	name := n
+	size := s
+end
+
+class food()
+	local
+		name,
+		taste;
+		
+	method eat()
+		write("Mmmm, that tastes ", taste)
+	end
+initially(n, t)
+	name := n
+	taste := t
+end
+
+procedure main()
+	local
+		result,
+		kitchen,
+		dining,
+		table,
+		plate,
+		refrigerator,
+		stove,
+		apple,
+		orange,
+		logic,
+		q;
+	
+	logic := Logical()	
+#	write(type(logic)[1:-7])
+#	write(type(logic[1]))
+	
+	kitchen := room("Kitchen")  #  kitchen :- room("Kitchen") creates the room predicate and stores it.
+	dining := room("Dining")
+	table := item("Table", "heavey")
+	plate := item("Plate", "light")
+	refrigerator := item("Refrigerator", "heavey")
+	stove := item("Stove", "heavey")
+	apple := food("apple", "sweet")
+	orange := food("orange", "tart")
+	
+#	write(image(apple))
+#	every atom := !apple do {
+#		if type(atom) == "string" then write(atom)
+#		else write("atom: ", type(atom))
+#	}
+#	write(logic.toStringPredicateInternal(kitchen))
+	
+	logic.addPredicate(kitchen)
+	logic.addPredicate(dining)
+	logic.addPredicate(table)
+	logic.addPredicate(plate)
+	logic.addPredicate(refrigerator)
+	logic.addPredicate(stove)
+	logic.addPredicate(table)
+	logic.addPredicate(apple)
+	logic.addPredicate(orange)
+	
+#	write(logic.toStringPredicateInternal(apple))
+#	write(logic.listContents(logic.predicates["food"]))
+	
+	logic.addPredicate(location(dining, table))  #  :- location(dining, table) creates location predicate and stores it
+	logic.addPredicate(location(dining, plate))
+	logic.addPredicate(location(kitchen, refrigerator))
+	logic.addPredicate(location(kitchen, stove))
+	logic.addPredicate(location(dining, apple))
+	logic.addPredicate(location(kitchen, orange))
+	
+	write(logic.listContents(logic.predicates["location"]))
+#	q := location(kitchen)
+#	result := logic.query(q)
+#	write("first query result: ", logic.listContents(result))
+#	q := food()
+#	result := logic.query(q, result)
+#	write("second query result: ", logic.listContents(result))
+	
+#	test1 := testClass()
+#	write(type(test1))
+#	test2 := testClass()
+#	write(type(test2))
+	
+end
+
+# Logical class performs logic based computation and is a singleton.
+class Logical()
+	local
+		predicates; # stores all predicates
+	
+	# adds a predicate to the predicates table, a bucket is created for each record type.
+	# each predicate is stored in the in the buckets according to their record type.
+	method addPredicate(predicate)
+		local
+			key;
+		
+		key := hash(predicate)
+		if /predicates[key] then {
+			predicates[key] := set()
+		}
+		insert(predicates[key], predicate)
+	end
+	
+	method hash(predicate)
+		if type(predicate)[0:-7] == "__state" then {
+			return type(predicate)[1:-7]
+		} else {
+			return type(predicate)
+		}
+	end
+	
+	# retrieves the predicates stored in bucket matching the key.
+	method getPredicates(key)
+		return predicates[key]
+	end
+	
+	# determines whether a predicate exists.
+	method exists(predicate)
+		local
+			key,
+			item;
+			
+		key := type(predicate)
+		if \predicates[key] then {
+			every item := !predicates[key] do {
+				if item[1] == predicate[1] then return item
+				else return &null
+			}
+		} else {
+			return &null
+		}
+	end
+	
+	method makeQuery(ident, queries)
+	
+	end
+	
+	method query(q, preds)
+		local
+			index,
+			indexes,
+			key,
+			predicate,
+			item,
+			result,
+			success;
+			
+		result := []
+#		write("\n\nQuery: ", type(q), "(", toStringPredicateInternal(q), ")")
+		indexes := []
+		key := type(q)
+		index := 1
+		while index <= *q do {
+			if \q[index] then {
+				put(indexes, index)
+			}
+			index +:= 1
+		}
+		if /preds then {
+			preds := predicates[key]
+		}
+		every predicate := !preds do {
+			success := queryMatch(q, predicate, indexes)
+			if \success & *success > 0 then {
+				every item:= !success do {
+					put(result, item)
+				}
+			}
+			success := &null
+		}
+		return result
+	end
+	
+	method queryMatch(q, predicate, indexes)
+		local 
+			index,
+			item,
+			success,
+			result;
+			
+		index := 1
+		result := []
+		if type(predicate) == type(q) then {
+			every item := !predicate do {
+				if member(indexes, index) then {
+					if toStringPredicateInternal(item[index]) ~== toStringPredicateInternal(q[index]) then {
+						return &null
+					}
+				}
+				index +:= 1
+			}
+			every index := 1 to *predicate do {
+				if not member(indexes, index) then {
+					if type(predicate[index]) == "list" then {
+						every item := !predicate[index] do put(result, item)
+					} else {
+						put(result, predicate[index])
+					}
+				}
+			}
+			return result		
+		}
+	end
+	
+	method toStringPredicateInternal(predicate)
+		local
+			atom,
+			i,
+			str,
+			size,
+			count;
+		
+		str := ""
+		if \predicate then {
+			size := *predicate
+			str := hash(predicate) || "("
+			count := 1
+			every i := 1 to size do {
+				atom := predicate[i]
+				if count > 1 then str ||:= ", "
+				if type(atom)[0:-7] == "__state" then {
+					str ||:= toStringPredicateInternal(atom)
+				} else if type(atom) == "string" then {
+					str ||:= atom
+				} else if \atom then {
+					str ||:= toStringPredicateInternal(atom)
+				}	
+				count +:= 1
+			}
+			str ||:= ")"
+		} else {
+			str ||:= "&null"
+		}
+		return str
+	end
+	
+	method listContents(list)
+		local
+			str,
+			count,
+			item;
+			
+		write("listContents")
+		str := "["
+		count := 1
+		every item := !list do {
+			if count == 1 then str ||:= toStringPredicateInternal(item)
+			else str ||:= ", " || toStringPredicateInternal(item)
+			count +:= 1
+		}
+		str ||:= "]"
+		return str
+	end
+	
+initially()
+	Logical := self
+	predicates := table();
+end

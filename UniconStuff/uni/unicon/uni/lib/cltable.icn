@@ -1,0 +1,67 @@
+#
+# $Id: cltable.icn,v 1.3 2006-07-10 13:43:32 rparlett Exp $
+#
+
+package util
+
+import lang
+
+#
+# This class represents a caseless table()
+#
+class ClTable:Object(lookup, names)
+   method insert(key, val)
+      ::insert(lookup, map(key), val)
+      ::insert(names, map(key), key)
+   end
+
+   method member(key)
+      return ::member(lookup, map(key))
+   end
+
+   method delete(key)
+      ::delete(lookup, map(key))
+      ::delete(names, map(key))
+   end
+   
+   method get(key)
+      return lookup[map(key)]
+   end
+
+   method sort()
+      local l, e
+      l := ::sort(lookup)
+      every e := !l do
+	 e[1] := names[e[1]]
+      return l
+   end
+
+   method keys()
+      local e
+      every e := !::sort(names) do {
+	 suspend e[2]
+	 }
+   end
+
+   method to_string(depth, seen)
+      local string_buff, pairs, e
+
+      string_buff := StringBuff()
+      string_buff.add("ClTable<" || get_id() || ">[")
+      pairs := sort(names)
+      every e := !pairs do {
+	 string_buff.add(lang::to_string(e[1], depth - 1, seen))
+	 string_buff.add("=")
+	 string_buff.add(lang::to_string(e[2], depth - 1, seen))
+	 string_buff.add(";")
+	 }
+      string_buff.drop_last(";")
+      string_buff.add("]")
+      return string_buff.get_string()
+   end
+
+initially()
+   lookup := table()
+   names := table()
+end
+

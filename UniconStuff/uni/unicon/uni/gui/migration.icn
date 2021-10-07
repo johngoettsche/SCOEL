@@ -1,0 +1,126 @@
+package gui
+
+import lang
+
+$include "guih.icn"
+
+#
+# Simulate a V1 _Event, but within the gui package.
+#
+class _Event:Object(event, component, code)
+   method get_event()
+      return self.event
+   end
+
+   method get_code()
+      return self.code
+   end
+
+   method get_component()
+      return self.component
+   end
+end
+
+#
+# Convert a V2 style Event to a V1 _Event.
+#
+procedure V2TOV1(ev)
+   local p, code, c, classnam
+
+   #
+   # V1 didn't have mouse movement, so speed things up
+   # by ignoring these events.
+   #
+   if ev.get_param() === -12 then
+      fail
+
+   classnam := get_class_name(ev.get_source())
+   c := get_class_for_name( classnam ).get_implemented_classes()
+
+   if member(c, "gui__Button") then {
+      code := case ev.get_type() of {
+         BUTTON_PRESS_EVENT : 0
+         BUTTON_RELEASE_EVENT : 1
+         BUTTON_HELD_EVENT : -1
+         (\ev).get_param() === ("\r"|"\l") &
+         ACTION_EVENT : 2
+         default: fail
+      }
+   }
+   else if member(c, "gui__TextField") then {
+      code := case ev.get_type() of {
+         CONTENT_CHANGED_EVENT : 1
+         ACTION_EVENT : 0
+         default: fail
+      }
+   }
+   else if member(c, "gui__ScrollBar") then {
+      code := case ev.get_type() of {
+         SCROLLBAR_PRESSED_EVENT : 0
+         SCROLLBAR_DRAGGED_EVENT : 1
+         default: fail
+      }
+   }
+   else if member(c, "gui__Tree") then {
+      code := case ev.get_type() of {
+         CURSOR_MOVED_EVENT : 0
+         SELECTION_CHANGED_EVENT : 1
+         TREE_NODE_EXPANSION_EVENT : 2
+         default: fail
+      }
+   }
+   else if member(c, "gui__SelectableScrollArea") then {
+      code := case ev.get_type() of {
+         CURSOR_MOVED_EVENT : 0
+         SELECTION_CHANGED_EVENT : 1
+         default: fail
+      }
+   }
+   else if member(c, "gui__Table") then {
+      code := case ev.get_type() of {
+         MOUSE_RELEASE_EVENT : 0
+         CURSOR_MOVED_EVENT : 0
+         SELECTION_CHANGED_EVENT : 1
+         default: fail
+      }
+   }
+   else if member(c, "gui__EditableTextList") then {
+      code := case ev.get_type() of {
+         CURSOR_MOVED_EVENT |
+         CONTENT_CHANGED_EVENT |
+         SELECTION_CHANGED_EVENT : 0
+         default: fail
+      }
+   }
+   else if member(c, "gui__List") then {
+      code := case ev.get_type() of {
+         SELECTION_CHANGED_EVENT : 0
+         default: fail
+      }
+   }
+   else if member(c, "gui__EditList") then {
+      code := case ev.get_type() of {
+         SELECTION_CHANGED_EVENT : 0
+         CONTENT_CHANGED_EVENT : 2
+         default: fail
+      }
+   }
+   else if member(c, "gui__MenuComponent") then {
+      code := case ev.get_type() of {
+         ACTION_EVENT : 0
+         default: fail
+      }
+   }
+   else
+      code := 0
+
+   #
+   # Some components now return nested Event objects as the param
+   # field; so go down to the lowest level if needed.
+   #
+   p := ev.get_param()
+   while lang::is_instance(p, "util__Event") do
+      p := p.get_param()
+
+   return _Event(p, ev.get_source(), code)
+end

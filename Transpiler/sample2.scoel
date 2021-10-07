@@ -1,0 +1,7 @@
+	
+class B : sample::A
+	method bar()
+	end
+constructor()
+	A.foo()
+end

@@ -1,0 +1,83 @@
+#
+# $Id: guih.icn,v 1.11 2006-01-17 12:40:50 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+link graphics
+
+$include "keysyms.icn"
+$include "posix.icn"
+
+#
+# Standard spacing constants
+#
+
+# The width of a border
+$define BORDER_WIDTH 2
+
+# The x spacing for text in a Border object
+$define BORDER_TEXT_SPACING 2
+
+# The x spacing for text within a dashed cursor/highlight box
+$define HIGHLIGHT_TEXT_SPACING 2
+
+# Default x/y text surrounds, eg in a button.
+$define DEFAULT_TEXT_X_SURROUND 8
+$define DEFAULT_TEXT_Y_SURROUND 5
+
+# Default x/y padding between a ScrollPane's borders and its content.
+$define DEFAULT_SP_X_PADDING 6
+$define DEFAULT_SP_Y_PADDING 5
+
+#
+# Additional event codes
+#
+$define EVENT_BUTTON_HELD   1000
+$define EVENT_SCROLLED      1001
+
+$define SB_SIZE 22
+
+
+$define X_PADDING_INC 5
+
+$define ICON_EVENT 1
+
+$define BUTTON_RELEASE_EVENT 20
+$define BUTTON_PRESS_EVENT 21
+$define BUTTON_HELD_EVENT 22
+
+$define SCROLLBAR_PRESSED_EVENT 30
+$define SCROLLBAR_DRAGGED_EVENT 31
+
+$define SELECTION_CHANGED_EVENT 40
+
+$define CONTENT_CHANGED_EVENT 50
+$define CURSOR_MOVED_EVENT 51
+
+$define ACTION_EVENT 60
+
+$define TREE_NODE_EXPANSION_EVENT 70
+
+$define SIZER_RELEASED_EVENT 80
+
+$define MOUSE_PRESS_EVENT 90
+$define MOUSE_DRAG_EVENT 91
+$define MOUSE_RELEASE_EVENT 92
+$define MOUSE_MOTION_EVENT 93
+$define KEY_PRESS_EVENT 95
+$define KEY_RELEASE_EVENT 96
+
+$define SLIDER_PRESSED_EVENT 110
+$define SLIDER_DRAGGED_EVENT 111
+
+$define CLOSE_BUTTON_EVENT 200
+
+$define TICK_EVENT 300
+
+$define GOT_FOCUS_EVENT 400
+$define LOST_FOCUS_EVENT 401
+
+$define DIALOG_CLOSED_EVENT 500

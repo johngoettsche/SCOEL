@@ -1,0 +1,857 @@
+#
+#  buffertextlist.icn - modified editabletextlist
+#
+#  Author: Nolan Clayton, Hani bani Salameh, Clinton Jeffery
+#
+#  Adds line numbers, syntax coloring and error highlighting for an
+#  IDE to the generic EditableTextlist.
+#
+#  To do: separate out Unicon language dependency so it is extensible.
+#
+
+#
+#  A scrollable editable text area.  An {Event} is generated whenever the
+#  contents are changed by the user.
+#
+link graphics
+
+import gui
+import undo
+import lang
+import util
+
+$include "guih.icn"
+$include "../unicon/ytab_h.icn"
+
+#
+# This subclass of the remappable keybinder handles multi-key prefixes
+# and remembers what mode it is in, e.g. emacs-mode, default-mode, etc.
+#
+class IDEKeybindings : Keybindings(mode, prefix)
+   method handle_key(e)
+   local m
+      if type(e) == "string" then e := prefix || e
+      if m := \ (keymap[e]) then {
+	 if m == "handle_prefix" then prefix ||:= e
+	 else {
+	    prefix := ""
+	    return m
+	    }
+	 }
+   end
+   method current_mode()
+      return mode
+   end
+   method default_mode()
+      mode := "default"
+      self.Keybindings.default_mode()
+   end
+
+   #
+   # Emacs-like keybindings.  Probably should rename existing
+   # methods whose names are tied to particular keys instead
+   # naming them based on what editing function they perform.
+   #
+   method emacs_mode()
+      mode := "emacs"
+      set_key("\e",     "handle_prefix",
+	      Key_Home, "ide_key_home",
+	      Key_End,  "ide_key_end",
+	      "\^a",    "handle_start_of_line",
+	      "\^b",    "backward_char",
+	      "\^c",    "handle_prefix",
+	      "\^f",    "forward_char",
+	      "\^n",    "handle_key_down",
+	      "\^p",    "handle_key_up",
+	      "\^v",    "handle_key_page_down",
+	      "\^x",    "handle_prefix",
+	      "\^y",    "handle_paste",
+	      "\^z",    "handle_scrolldown_one_line",
+	      "\^x\^c", "handle_exit",
+	      "\^x\^x", "exchange_point_and_mark",
+	      "\^x\^f", "find_file",
+	      "\^x\^s", "save_buffer",
+	      "\^x\^n", "next_error"
+# Proposed function key bindings. Still under construction.
+# Loosely based on Borland-style IDE keybindings.
+#
+# Key	Base		Control     Alt		Shift
+#  F1   Help		search@crsr help/srch	help index
+#  F2	Save file	restart	    Find(next)	grep
+#  F3	Open file	callstack   closewin	New file
+#  F4   Run to cursor
+#  F5	Toggle breakpt		    User screen
+#  F6	Next win				Previous win
+#  F7	Step		set watchpt
+#  F8	Next		set breakpt
+#  F9	Make		Run	    Compileonly Run/debug
+# F10	Main menu		
+# F11	runtime msgs	project dlg inspect
+# F12	compiler msgs	toggle ivib
+# alt-x = exit
+	      )
+   end
+initially
+   self.Keybindings.initially()
+   prefix := ""
+end
+
+class BuffEditableTextList : EditableTextList(
+   moved,	# to-do: check if we need this and if so, implement it.
+   mouse_locked,
+   scroll_locked,
+   pm,
+   pm_menu,
+   vi,      #virtual line index
+   highlightcolor,
+   autoindent,
+   scroll_y,
+   errorLineNumber,
+   doReparse,
+   paren_match_found,
+   EditBox,
+   word, known,
+   popup_item, l
+   )
+
+   method forward_char(e)
+      handle_key_right(e)
+   end
+
+   method backward_char(e)
+      handle_key_left(e)
+   end
+
+   # HOME goes to beginning of line, ^HOME goes to beginning of file
+   method ide_key_home(e)
+      if &control then handle_key_home(e)
+      else handle_start_of_line()
+   end
+
+   # END goes to end of line, ^END goes to end of file
+   method ide_key_end(e)
+      if &control then handle_key_end(e)
+      else handle_end_of_line()
+   end
+
+   method fire(type, param)
+   local t1, t2
+      self$Connectable.fire(type, param)
+      if type === CONTENT_CHANGED_EVENT then {
+	 # Optimize this blind any-change==reparse logic to be more
+	 # selective.  Pressing return won't change the token sequence,
+	 # nor will editing of comments.
+	 doReparse := 1
+	 }
+      if type === CURSOR_MOVED_EVENT & old_cursor_y ~= cursor_y then {
+	 t1 := &time
+	 ReparseCode()
+	 t2 := &time
+	 if t2 - t1 > 150 then
+	    write(&errout, "syntax checking is slow in here (", t2-t1,
+		  "ms); consider disabling it")
+	 }
+   end
+
+   method on_vsb(ev,y_coor,enter_here)
+      if /enter_here & \scroll_locked then fail #lock scrollbar
+      self.EditableTextList.on_vsb(ev)
+      if \enter_here=1 then {
+	 if \self.vsb then {
+	    self.vsb.set_value(y_coor)
+	    enter_here := 0
+	    }
+	 }
+   end
+
+   method on_hsb(ev,x_coor,enter_here)
+      if /enter_here & \scroll_locked then fail#lock scrollbar
+      self.EditableTextList.on_hsb(ev)
+      if \enter_here=1 then {
+	 if \self.hsb then {
+	    self.hsb.set_value(x_coor)
+	    enter_here := 0
+	    }
+	 }
+   end
+
+   method handle_press(e,received)
+      if /received & \mouse_locked then fail #lock mouse
+      self.EditableTextList.handle_press(e)
+   end
+
+   method handle_drag(e,received)
+      if /received & \mouse_locked then fail #lock mouse
+      self.EditableTextList.handle_drag(e)
+   end
+
+   method handle_release(e,received)
+      if /received & \mouse_locked then fail #lock mouse
+      self.EditableTextList.handle_release(e)
+   end
+
+   method handle_return(e)
+      local i, str, t1, t2
+      self.EditableTextList.handle_return(e)
+      if \autoindent then{ 
+	 str := contents[cursor_y - 1]
+	 i := 1
+
+         while i < *str + 1  do {	    
+            case str[i] of { 
+               " "     : handle_default(" ")
+               #"\t"    : handle_tab_text("\t")
+               default : i := *str +2
+               }
+            i +:= 1
+	    }
+        }
+      # Reparse code when the cursor moves in the Y axis
+      t1 := &time
+      ReparseCode()
+      t2 := &time
+      if t2 - t1 > 150 then
+	 write(&errout, "syntax checking is slow in here (", t2-t1,
+	       "ms); consider disabling it")
+   end
+
+
+   # on rightclick, see if we can popup a helpful link
+   method handle_right_click(e)
+      local func_type
+      word := known.word_under_cursor()
+      popup_item.disconnect(\l)
+      if word === -1 then {
+	 #right-clicked on something besides a word
+	 #popmenu item should be a discription of what it can do	
+	 popup_item.set_label("Method call jumps to definition")
+	 }
+      else {
+	 func_type := known.func_lookup(word)
+	 if func_type === 1 then {
+	    #popup menu item should be documentation for (function)
+	    popup_item.set_label("function "|| word || "()")
+	    l := popup_item.connect(self, "open_ref", ACTION_EVENT)
+	    }
+	 else if func_type === 2 then {
+	    #popup menu item should be Jump-To (name of function)
+	    popup_item.set_label("Jump to function definition for: "|| word)
+	    l := popup_item.connect(self, "jump_to", ACTION_EVENT)
+
+	    #popup_item.disconnect(self)
+	    }
+	 else if type(func_type) == "list" then {
+	    popup_item.set_label(func_type[1] || " " || word || " " ||
+				 func_type[2])
+	    }
+	 else {
+	    #popmenu item should be a discription of what it can do
+	    popup_item.set_label("Method call jumps to definition")
+	    }	
+	 }
+
+      # Only add it once.
+      if *pm_menu.children === 0 then {
+	 pm_menu.add(popup_item)
+	 pm.attrib("fg=magenta")
+	 }
+      pm.set_menu(pm_menu)
+      pm.set_parent(self.parent_dialog)	
+      if !children === pm then {} else
+	 add(pm)
+      pm.init()
+		
+      #pm.set_pos(self.cursor_x, self.cursor_y)
+      #pm.resize()
+      #pm.display()
+      pm.popup()
+      #write("xy: ",self.cursor_x, ",", self.cursor_y)
+   end
+
+   # jump to user-defined procedure/method
+   method jump_to(ev)
+      known.usr_funcs(word)
+   end
+
+   # open reference documenation for built in functions
+   method open_ref(ev)
+      known.open_reference(word)
+   end
+
+   #
+   # Overrides default handle_event() re-parsing on line changes, etc.
+   #
+   method handle_event(e)
+   local t1, t2
+      if integer(e) = &mpress then
+	 simulate_wheelbutton()
+      # turn scroll up/down into a key_up/down in the vsb.
+      else if integer(e) = -13 then
+         every 1 to 4 do (\vsb).handle_button_up(e)
+      else if integer(e) = -14 then
+         every 1 to 4 do (\vsb).handle_button_down(e)
+      else if integer(e) === &rrelease then {
+	handle_right_click(e)
+	}
+	else self.EditableTextList.handle_event(e)
+
+      
+      if \self.old_cursor_y ~= self.cursor_y then {
+	 t1 := &time
+	 ReparseCode()
+	 t2 := &time
+	 if t2 - t1 > 150 then
+	    write(&errout, "syntax checking is slow in here (", t2-t1,
+		  "ms); consider disabling it")
+	 }
+      
+      if \self.changed then {
+         #ide.modified:=1
+         if not (ide.CurrentTabItem().label[-1] == "*") then {
+            ide.CurrentTabItem().label := ide.CurrentTabItem().label || "*"
+            uidlog.FileTabSet.resize()
+            }
+         if \uidlog.ui_Preferences.paren_check_box_state then {
+            if \self.match_paren() then {
+               self.contents_changed()
+               self.fire(CURSOR_MOVED_EVENT, e)
+               }
+            if \paren_match_found then {
+               self.cursor_update()
+               self.contents_changed()
+               self.fire(CURSOR_MOVED_EVENT, e)
+               }
+            }
+         uidlog.FileBrowser.addreplace(self.get_contents(),
+                                       uidlog.FileTabSet.which_one.filename, 0)
+         }
+   end
+
+   method cursor_update()
+      delay(300)
+      paren_match_found:=&null
+      self.cursor_y := self.old_cursor_y 
+      self.cursor_x := self.old_cursor_x
+   end
+   
+   method match_paren()
+      local paren, paren_closing, paren_string, paren_string_rest, paren_grid,
+         paren_pos, virtual_pos, counter, i, j, msgboxdata
+      paren := MatchParen()
+      paren_closing := ')]}'
+      paren_string := ""
+      paren_string_rest := ""
+      paren_grid := table()
+      
+      if member(paren_closing, contents[cursor_y, cursor_x - 1]) then {
+         every i := 1 to self.cursor_y - 1 do {
+            paren_string ||:= self.contents[i]
+            insert(paren_grid, i, self.contents[i])
+         }
+         virtual_pos := *paren_string + self.cursor_x
+         
+         paren_string_rest := self.contents[self.cursor_y]
+         paren_string_rest := paren_string_rest[1:self.cursor_x+1]
+
+         paren_string||:=paren_string_rest
+         insert(paren_grid, self.cursor_y, paren_string_rest)
+         
+         paren_pos := paren.test(\paren_string, virtual_pos)
+         
+         if \paren_pos then {
+            counter := 0
+            self.old_cursor_y := self.cursor_y
+            self.old_cursor_x := self.cursor_x
+            every i := 1 to self.cursor_y do {
+               every j := 1 to *paren_grid[i] do {
+                  counter +:= 1
+                  if counter = paren_pos then {
+                     self.cursor_y := i
+                     self.cursor_x := j
+                     uidlog.MsgBox.set_contents([self.contents[i]])
+                     uidlog.MsgBox.display()
+                     self.display()
+                     return paren_match_found := 1
+                  }
+               }
+            }
+         }
+      }
+      fail
+   end
+   
+   #
+   # The virtual x position of a line in the canvas, except
+   # that we have line numbering turned on at the left.
+   #
+   method get_left_pos()
+      local lineno_space := 0
+      # if \pegasus.line_no then
+      #lineno_space := TextWidth(cwin,*contents) + 3
+      lineno_space := 35
+      return lineno_space +
+         ((self.view.x - (\self.hsb).get_value()) | self.view.x)
+   end
+
+   method draw(subject_x, subject_y, vx, vy, vw, vh)
+      local rev, first_line, last_line, xp, yp, i
+
+      #
+      # Which lines to draw
+      #
+      first_line := get_first_line()
+      last_line := get_last_line()
+      last_line >:= get_line_count()
+
+      #
+      # Where to draw them
+      #
+      yp := vy + self.line_height / 2
+
+      #
+      # Left offset
+      #
+      xp := vx - subject_x
+      # ... make it a scalable offset
+      xp := ((((*self.get_last_line()) / 1.75) * self.line_height) + xp - 30)
+
+      rev := Clone(self.cbwin, "drawop=reverse")
+
+      #
+      # Write the lines
+      #
+      every i := first_line to last_line do {
+         draw_line(xp+35, yp, i, rev)
+         yp +:= self.line_height
+         }
+
+      Uncouple(rev)
+      rev := &null
+      return
+   end
+
+
+   method draw_line(xp, yp, i, rev)
+      local si, s, off, off1, off2, v, r, fh, asc, desc, yp2, cw
+
+      fh := WAttrib(self.cbwin, "fheight")
+      asc := WAttrib(self.cbwin, "ascent")
+      desc := WAttrib(self.cbwin, "descent")
+      v := self.view_list[i]
+      s := v.str
+      si := self.cursor_x - v.first + 1
+
+      left_string(self.cbwin, xp, yp, detab(s))
+
+      #rectangle color
+      Fg(self.cbwin, uidlog.ui_Preferences.linenumber_highlight_color)
+      yp2 :=  yp + ((asc - desc)/2) - asc
+      FillRectangle(self.cbwin, xp - 35, yp2, 40, fh) #rectangle pos
+      #line_num color
+      Fg(self.cbwin, uidlog.ui_Preferences.linenumber_text_color)
+      #line_num pos
+      left_string(self.cbwin, xp - TextWidth(self.cwin, i) - 3 , yp, i)
+
+      Fg(cbwin, "black")
+
+      # Check if an error line has been set.
+      if \errorLineNumber then {
+         # Check if this string belong to the error line
+         if i = errorLineNumber then {
+            # Set error line color (red)
+            Fg(self.cbwin, "red")
+            }
+         }
+
+      left_string_unicon (self.cbwin, xp, yp, detab(s), i)
+
+      if (v.index = \self.cursor_y) & 
+         (v.first <= \self.cursor_x <= v.last) then {
+         if \self.has_focus then {
+            cw := Clone(self.cbwin,
+			"bg="||uidlog.ui_Preferences.cursor_highlight_color,
+                        "fg="||uidlog.ui_Preferences.cursor_text_color)
+            off := TextWidthEx(self.cbwin, s, 1, si, self.tab_width)
+            EraseRectangle(cw, xp + off, yp - self.line_height / 2, 
+                           CharWidth(self.cbwin, s[si]), self.line_height)
+
+            if s[si] ~== "\t" then
+               left_string(cw, xp + off, yp, s[si])
+
+            Uncouple(cw)
+            } 
+         else {
+            cw := Clone(self.cbwin,
+			"fg="||uidlog.ui_Preferences.cursor_highlight_color)
+            Rectangle(cw, 
+                      xp + TextWidthEx(self.cbwin, s, 1, si, self.tab_width), 
+                      1 + yp - self.line_height / 2, 
+                      CharWidth(self.cbwin, s[si]), 
+                      self.line_height)
+            Uncouple(cw)
+            }
+         }
+
+      if \self.mark_y then {
+         if (self.mark_y < v.index < self.cursor_y) | 
+            (self.mark_y > v.index > self.cursor_y) then {
+            # Whole line selected
+            r := [v.first, v.last]
+            } 
+         else if v.index = self.mark_y = self.cursor_y then {
+            # Part of line
+            if self.mark_x < self.cursor_x then {
+               r := range(v.first, v.last, self.mark_x, self.cursor_x)
+               }
+            else if self.mark_x > self.cursor_x then {
+               r := range(v.first, v.last, self.cursor_x + 1 , self.mark_x)
+               }
+            } 
+         else if v.index = self.mark_y then {
+            if self.mark_y < self.cursor_y then {
+               r := range(v.first, v.last, self.mark_x, *self.contents[v.index] + 1)
+               } 
+            else {
+               r := range(v.first, v.last, 1, self.mark_x)
+               }
+            } 
+         else if v.index = self.cursor_y then {
+            if self.mark_y > self.cursor_y then {
+               r := range(v.first, v.last, self.cursor_x + 1, *self.contents[v.index] + 1)
+               } 
+            else {
+               r := range(v.first, v.last, 1, self.cursor_x)
+               }
+            }
+         if \r then {
+            off1 := TextWidthEx(self.cbwin, s, 1, r[1] - v.first + 1, self.tab_width)
+            off2 := TextWidthEx(self.cbwin, s, 1, r[2] - v.first + 1, self.tab_width)
+            FillRectangle(rev, xp + off1, 1 + yp - self.line_height / 2,  off2 - off1, self.line_height)
+            }
+         }
+   end
+
+   method toggle_autoindent()
+      if \autoindent then  autoindent:= &null
+      else autoindent := 1
+   end
+
+   # Simulate a wheelbutton using middle mouse button events.
+   # Not a very good simulation! This code is subsumed by the
+   # new scrollup/scrolldown (-13, -14) events.
+   method simulate_wheelbutton()
+
+      if \self.has_focus then {
+         scroll_y := &y
+
+	 # five for each press
+	 handle_key_down()
+	 handle_key_down()
+	 handle_key_down()
+	 handle_key_down()
+	 handle_key_down()
+
+         while Event() === &mdrag do {
+            if &y > scroll_y then {
+               handle_key_down()
+               handle_key_down()
+               handle_key_down()
+               }
+
+            if &y < scroll_y  then {
+               handle_key_up()
+               handle_key_up()
+               handle_key_up()
+              }
+            self.constrain_line()
+            self.refresh(1)
+            }
+         }
+   end
+
+   method highlight_line(i)
+      start_handle()
+      if /i  then i := 1
+      if not (*contents >=  i > 1) then i := 1
+
+      mark_x := 1
+      mark_y := i
+      cursor_y := i
+      cursor_x := *contents[i] + 1
+      end_handle()
+   end
+
+   # New left_string for the UniconTextList
+   method left_string_unicon(win, x, y, s, currentLine)
+      local i, token, last_s_Position, new_s_Position, off, remainder, prefs
+
+      prefs := uidlog.ui_Preferences
+      y +:= (WAttrib(win, "ascent") - WAttrib(win, "descent")) / 2
+      # Check if an error line has been set.
+      if \errorLineNumber then {
+         # Check if this string belong to the error line
+         if currentLine = errorLineNumber then {
+            # Set error line color (red)
+            Fg(win, prefs.error_text_color)
+            # Print the string
+            DrawString(win, x, y, s)
+            # Exit this method
+            return
+            }
+         }	
+
+      # Reinitialize error counter in the yyerror function.  This is done in
+      # order to avoid the istop() function being called from within the
+      # yyerror() function when the merr error counter gets to 10.  This is
+      # only helpful within this syntax coloring procedure.
+      yyerror( "reinitialize merr errors" )
+
+      # Reinitialize lexical analyzer
+      yyin := s
+      yylex_reinit()
+
+      # Initialize string s position variables
+      off := 0
+      new_s_Position := last_s_Position := 1
+
+      if 1 # (\uidlog.ui_Preferences.syntax_check_box_state) # &
+#         (map(uidlog.FileTabSet.which_one.filename)[-4:0]==".icn")
+      then {
+         # Get string s tokens
+         while (token := yylex()) ~=== EOFX do {
+            # Set token color
+            Fg(win, case token of {
+               ABSTRACT | BREAK | BY | CASE | CREATE |
+               DEFAULT | DO | ELSE | EVERY | FAIL |
+               IF | INITIALLY | iconINITIAL |
+               INVOCABLE | NEXT | NOT | OF |
+               RECORD | REPEAT | RETURN | SUSPEND |
+               THEN | TO | UNTIL | WHILE          : prefs.syntax_text_color
+               GLOBAL | LINK | STATIC |
+               IMPORT | PACKAGE | LOCAL           : prefs.glob_text_color
+               PROCEDURE |CLASS | METHOD | END    : prefs.procedure_text_color
+               STRINGLIT | CSETLIT                : prefs.quote_text_color
+               default                            : prefs.default_text_color
+               })
+            # Get token end position in string s
+            new_s_Position := yytoken["column"] + *yytoken["s"] - 1
+            # Print the string
+            DrawString(win, x, y, s[ last_s_Position : (new_s_Position + 1)])
+            # Get the printed text of string s offset
+            off := TextWidth(win, s[ last_s_Position : (new_s_Position + 1)])
+
+            # Get the new last string s starting position
+            last_s_Position := new_s_Position + 1
+            # Add the offset to the x position
+            x +:= off
+            }
+         
+         # Draw the rest of the string s that was not a token
+         Fg(win, prefs.comment_text_color)#Very Dark Green
+         }
+      else
+         Fg(win, prefs.default_text_color)
+
+      remainder := s[ last_s_Position : 0 ]
+      if *(trim(\remainder)) > 0 then
+         DrawString( win, x, y, s[ last_s_Position : 0 ] )
+      Fg(win, prefs.text_highlight_color)
+   end
+
+   method SetErrorLineNumber ( lineNumber )
+      if lineNumber > *contents then
+         errorLineNumber := *contents
+      else
+         errorLineNumber := lineNumber
+   end
+
+   method ReparseCode ()
+      local s, rv, x, errorObject, timeElapsed, lineNumberOffset
+
+      if doReparse === 1 then {
+         # Get time spent in reparsing the code
+         timeElapsed := &time
+         # Clear errors
+         SetErrorLineNumber ( 0 )
+
+         # Initialize preprocessor variables
+         uni_predefs := predefs()
+
+         # Get the line number offset and the code
+         x := 1
+         s := copy(GetCode()) | []
+
+         # Extract the line number offset		
+         lineNumberOffset := pop(s)
+
+         # Call the preprocessor but instead of passing a file name, 
+         # pass a list containing the code.
+	 preproc_err_count := 0
+         yyin := ""
+         every yyin ||:= preprocessor(s, uni_predefs) do yyin ||:= "\n"
+	 if preproc_err_count = 0 then {
+	    # Reinitialize lexical analyzer
+	    yylex_reinit()
+	    # Initialize variables
+	    /yydebug := 0
+	    parsingErrors := []
+	    # Reparse the code
+	    rv := yyparse()
+	    }
+         # Display errors	
+         if errors + (\yynerrs|0) + preproc_err_count > 0 then {
+            every errorObject := !parsingErrors do {
+               # display the error
+               errorObject.lineNumber +:= lineNumberOffset
+	       if errorObject.lineNumber <= *contents then {
+		  SetErrorLineNumber(errorObject.lineNumber)
+		  uidlog.MsgBox.set_contents([errorObject.lineNumber ||": " ||
+					      errorObject.errorMessage])
+		  }
+               }
+            }
+	 else uidlog.MsgBox.set_contents(["(no errors)"])
+	 doReparse := 0
+	 }
+   end
+
+   method GetCode()
+      local codeSubStringList, originalPositionY, currentPositionY, token,
+              startPositionY := 0, endPositionY := 0, endsneeded,
+	      inClass := 0, inMethod := 0
+
+      # reset parser
+      reinitialize()
+
+      # Search up for the enclosing procedure or class (compilation unit).
+      originalPositionY := currentPositionY := cursor_y
+      # used to assign this here: endsneeded := 1
+      while currentPositionY > 0 do {
+         # Reinitialize lexical analyzer
+         yyin := contents[currentPositionY]
+         yylex_reinit()
+         # Get string s tokens
+         while (token := yylex()) ~=== EOFX do {
+            # Get tokens
+            case token of {
+               PROCEDURE : {
+                  startPositionY := currentPositionY
+                  break
+                  }
+               METHOD : {
+		  inMethod := 1
+                  startPositionY := currentPositionY
+                  break
+                  }
+               CLASS : {
+		  inClass := 1
+                  startPositionY := currentPositionY
+                  break
+                  }
+               default : break
+               }
+            }
+         if startPositionY ~= 0 then break
+         # go up
+         currentPositionY -:= 1
+         }
+      if startPositionY = 0 then startPositionY := 1
+      # Search down for the enclosing end
+      currentPositionY := cursor_y
+      while currentPositionY < *contents + 1 do {
+         # Reinitialize lexical analyzer
+         yyin := contents[ currentPositionY ]
+         yylex_reinit()
+	 while countdoublequotes(yyin)%2=1 & yyin[-1]=="_" do {
+	    currentPositionY +:= 1
+	    if not (yyin ||:= contents[ currentPositionY ]) then {
+	       break break
+	       }
+	    }
+         yylex_reinit()
+         # Get string s tokens
+         while ( token := yylex() ) ~=== EOFX do {
+            # Get tokens
+            case token of {
+               END: {
+		  endPositionY := currentPositionY
+		  break
+                  }
+               CLASS | PROCEDURE: {
+		  if currentPositionY ~= startPositionY then {
+		     endPositionY := currentPositionY-1
+		     break
+		     }
+                  }
+               default : break
+               }
+            }
+         if endPositionY ~= 0 then break
+         # go down
+         currentPositionY +:= 1
+         }
+      # Check if a valid enclosing end was found
+      if endPositionY = 0 then {
+         # Return all code
+         codeSubStringList := [ 0 ] ||| contents 		
+         return codeSubStringList
+         }
+      # Send only the enclosing sub string list
+      if startPositionY = 0 then startPositionY := 1
+
+      if inMethod = 1 then {
+	 codeSubStringList := [ startPositionY, "class __Parse()" ] ||| 
+				contents[ startPositionY : endPositionY+1 ]|||
+			      ["end"]
+	 }
+      else if inClass = 1 then {
+	 codeSubStringList := [ startPositionY ] ||| 
+				contents[ startPositionY : endPositionY+1 ]|||
+			      ["end"]
+	 }
+      else {
+	 codeSubStringList := [ startPositionY ] ||| 
+				contents[ startPositionY : endPositionY+1 ]
+	 }
+      # check what we came up with to parse
+      # every write("\t", codeSubStringList[2 to *codeSubStringList])
+      return codeSubStringList
+   end
+
+   initially
+      self$EditableTextList.initially()
+      kmap := IDEKeybindings()
+      kmap.emacs_mode()
+      highlightcolor := "65535,65535,32428"
+      autoindent := &null
+      scroll_y := 1
+
+      known := known_funcs()
+#load the list of built-in functions into a table
+      known.load_BInames()
+      pm := PopupMenu()
+      pm_menu := Menu()
+      popup_item := TextMenuItem()
+      errorLineNumber := 0
+      doReparse := 1
+
+      # This variable comes from the unilex.icn file
+      errors := 0
+end
+
+# count # of doublequotes, supposedly accounting correctly for escaped quotes
+procedure countdoublequotes(s)
+local i := 0
+   s ? {
+      while tab(upto('"\\')) do {
+	 if ="\"" then
+	    i +:= 1
+	 else {
+	    move(1) # eat \\
+	    if i % 2  = 1 then
+	       move(1) # eat escaped things; should make smarter
+	    }
+	 }
+      }
+   return i
+end

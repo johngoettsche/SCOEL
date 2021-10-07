@@ -1,0 +1,197 @@
+#
+# $Id: netclient.icn,v 1.7 2005-07-20 18:04:11 rparlett Exp $
+#
+
+package net
+
+import util
+link posix
+
+$include "posix.icn"
+
+#
+# Common base class for a client class which holds a connection to a
+# server and communicates using CRLF-terminated lines.
+#
+class NetClient:Connectable:Error:SetFields(server, port, connection, sbuff, timeout)
+   # 
+   # Fail and set the error code, and close the connection.
+   # @p
+   method error_and_close(a)
+      error(a)
+      close()
+   end
+
+   #
+   # Set the timeout in ms to use.  If a figure of zero, or &null, is given (the default)
+   # then no timeout will be used.
+   #
+   method set_timeout(timeout)
+      return self.timeout := timeout
+   end
+
+   #
+   # Open the connection.
+   #
+   method open()
+      local s, t
+
+      close() | fail
+      s := server || ":" || port
+      fire("Connecting", "Connecting to " || s)
+
+      if not(connection := ::open(s, "n", timeout)) then {
+         if &errno = 0 then
+            return error("Timed out connecting to " || s)
+         else
+            return error("Couldn't connect to " || s)
+      }
+
+      sbuff := ""
+      fire("Connected")
+      return connection
+   end
+
+   #
+   # Close the connection
+   #
+   method close()
+      if \connection then {
+         ::close(connection) | return error("Failed to close connection")
+         fire("Closed")
+         connection := &null
+      }
+      return
+   end
+
+   #
+   # Set the server to use
+   #
+   method set_server(s)
+      server := s
+   end
+
+   #
+   # Set the port.
+   #
+   method set_port(n)
+      port := n
+   end
+
+   #
+   # @p
+   method send(s)
+      local i, t
+
+      if /timeout | (timeout = 0) then
+         return syswrite(connection, s)
+
+      fcntl(connection, "F", "d")
+      t := milliseconds()
+      while *s > 0 do {
+         if i := syswrite(connection, s) then {
+            s := s[i+1 : 0]
+            t := milliseconds()
+         } else {
+            if &errno ~= EAGAIN then
+               return error("Failed to write:" || strerror())
+            if milliseconds() - t > timeout then
+               return error("Send timed out")
+            sleep(50)
+         }
+      }
+      return
+   end
+
+   #
+   # Get an error string based on &errno
+   # 
+   method strerror()
+      return sys_errstr(&errno) | ("&errno=" || &errno)
+   end
+
+   #
+   # @p
+   method recv(len)
+      local l
+
+      if \timeout > 0 then {
+         l := select(connection, timeout) | return error("Failed to select:" || strerror())
+         if *l = 0 then
+            return error("Failed to select (timeout)")
+      }
+      return sysread(connection, len) | error("EOF encountered")
+   end
+
+   #
+   # Write the given string to the connection.
+   #
+   method write_str(s)
+      fire("Sending string", s)
+      return send(s)
+   end
+
+   #
+   # Write a single line to the connection, appending CRLF to the output stream.
+   # @p
+   method write_line(s)
+      /s := ""
+      fire("Sending line", s)
+      return send(s || "\r\n") 
+   end
+
+   #
+   # Read a single line from the connection, and return it.
+   # @p
+   method read_line()
+      local line
+
+      repeat {
+         #
+         # Look for a line and if found return it.
+         #
+         sbuff ? {
+            if line := tab(find("\r\n")) then {
+               move(2)
+               sbuff := tab(0)
+               fire("Read line", line)
+               return line
+            }
+         }
+         sbuff ||:= recv(1024) | fail
+      }
+   end
+
+   #
+   # Read up to len bytes on the connection.
+   #
+   method read_str(len)
+      local t
+      #
+      # Use the line buffer if it has anything in it.
+      #
+      if *sbuff > 0 then {
+         sbuff ? {
+            t := move(len) | tab(0)
+            sbuff := tab(0)
+         }
+      } else {
+         t := recv(len) | fail
+      }
+      fire("Read string", t)
+      return t
+   end
+
+   method set_one(attr, val)
+      case attr of {
+         "timeout": set_timeout(int_val(attr, val))
+         "server": set_server(string_val(attr, val))
+         "port": set_port(int_val(attr, val))
+         default : field_error("Unknown attribute " || attr)
+      }
+   end
+
+   initially()
+      self.Connectable.initially()
+      sbuff := ""
+end

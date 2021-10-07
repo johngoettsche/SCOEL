@@ -1,0 +1,435 @@
+#
+# $Id: code.icn,v 1.9 2007-02-01 08:22:46 jeffery Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+import lang
+
+#
+# Record to store a method to generate
+#
+record a_method(name, params, body)
+
+############################################################################
+#
+# Class to process code generation
+#
+class Code(
+           class_vars,              # Class variables which have methods             
+           local_vars,              # Variables local to the setup method             
+           imports,                 # Set of import declarations
+           methods,                 # Methods to be generated, a table of names->a_method records
+           code,                    # List of strings to generate in the setup method           
+           parent_Canvas,           #                     
+           indent1,                 # Spaces for indentation              
+           indent2,                 #
+           indent3,                 #
+           indent4                  #
+           )
+
+   #
+   # Display an error message
+   #
+   method alert_error(s)
+      return self.parent_Canvas.alert_error(s)
+   end
+
+   method set_parent_Canvas(c)
+      self.parent_Canvas := c
+      self.indent1 := repl(" ", self.parent_Canvas.gen_indent)
+      self.indent2 := repl(" ", 2 * self.parent_Canvas.gen_indent)
+      self.indent3 := repl(" ", 3 * self.parent_Canvas.gen_indent)
+      self.indent4 := repl(" ", 4 * self.parent_Canvas.gen_indent)
+      return c
+   end
+
+   #
+   # Add a line of code to the setup method.
+   #
+   method line(s)
+      put(code, s)
+   end
+
+   #
+   # Add a variable to the given list.
+   #
+   method add_var(s, class_variable)
+      if \class_variable then
+         insert(class_vars, s)
+      else
+         insert(local_vars, s)
+   end
+
+   #
+   # Add a method to the methods list
+   #
+   method add_method(name, params, body)
+      /params := ""
+      /body := []
+      methods[name] := a_method(name, params, body)
+   end
+
+   #
+   # Add a import to the set of imports
+   #
+   method add_import(l)
+      insert(imports, l)
+   end
+
+   #
+   # Add setup methods from the canvas setup
+   #
+   method add_setup_methods()
+      if \self.parent_Canvas.gen_init_dialog then {
+         add_method("init_dialog")
+         add_method("end_dialog")
+      }
+
+      if \self.parent_Canvas.gen_component_setup then {
+         add_method("component_setup", "", ["self.setup()"])
+      }
+
+      if \self.parent_Canvas.dialog_struct.ticker_rate then {
+         add_method("tick")
+      }
+   end
+
+   #
+   # Output the code to file called s.
+   #
+   method output_code(s)
+      local f
+      f := open(s, "w") | return alert_error("Couldn't open " || s)
+
+      if self.imports_out(f) then
+         write(f)
+
+      self.header_out(f)
+
+      add_setup_methods()
+      if self.methods_out(f) then
+         write(f)
+      self.setup_out(f)
+
+      if \self.parent_Canvas.gen_initially then {
+         write(f)
+         self.initially_out(f)
+      }
+      write(f, "end")
+      if \self.parent_Canvas.gen_main then {
+         write(f)
+         self.main_out(f)
+      }
+      write(f)
+      encoded_canvas_out(f)
+
+      close(f)
+      if f := open(s) then {
+	 ivib_maindialog.source := []
+	 while put(ivib_maindialog.source, read(f))
+	 close(f)
+	 }
+
+      return
+   end
+
+   #
+   # Interpose code to already existing file named src_name, resulting
+   # in dest_name.
+   #
+   method interpose_code(src_name, dest_name)
+      local f, part1, t, reading_class, id, method_name, part2, temp_name, s
+      static idchars
+      initial idchars := &letters++&digits++'_'
+
+      /dest_name := src_name
+
+      add_setup_methods()
+
+      if not (f := open(src_name)) then {
+	 alert_error("warning, couldn't open " || src_name)
+	 # the file has disappeared, try writing it from the copy we saved
+	 if f := open(src_name, "w") then {
+	    every write(f, !ivib_maindialog.source)
+	    close(f)
+	    if not (f := open(src_name)) then
+	       return alert_error("Couldn't open " || src_name)
+	    }
+	 else
+	    return alert_error("Couldn't open " || src_name)
+	 }
+
+      #
+      # Save contents up to setup() method
+      #
+      part1 := []
+      repeat {
+         t := read(f) | return alert_error("Couldn't find setup method")
+         t ? {
+            tab(many(' '))
+            if ="class " then {
+               tab(upto('(')) | return alert_error("No ( after class declaration")
+               move(1)
+               reading_class := 1
+            }
+            if \reading_class then {
+               tab(many(' \t'))
+               while id := tab(many(idchars)) do {
+                  delete(class_vars, id)
+                  tab(many(', '))
+               }
+               if any(')') then
+                  reading_class := &null
+            }
+            else if ="method " then {
+               tab(many(' '))
+               method_name := tab(many(idchars))
+               if method_name == "setup" then
+                  break
+               delete(methods, method_name)
+            }
+            else if ="import " then {
+               while tab(upto(idchars)) do
+                  delete(imports, tab(many(idchars)))
+            }
+         }
+         put(part1, t)         
+      }
+
+      #
+      # Skip over old setup method
+      #
+      repeat {
+         t := read(f) | return alert_error("Unexpected eof in setup method")
+         t ? {
+            tab(many(' '))
+            if tab(0) == "end" then
+               break
+         }
+      }
+
+      #
+      # Get remainder of file, stopping at end-of-file or the ### marker (v1/2)
+      #
+      part2 := []
+
+      while t := read(f) & t ~== v2_marker & t ~== v1_marker do {
+         t ? {
+            tab(many(' '))
+            if ="method " then
+               delete(methods, tab(many(idchars)))
+         }
+         put(part2, t)
+      }
+      close(f)
+
+      #
+      # Re-create file
+      #
+      temp_name := dest_name || ".temp"
+      f := open(temp_name, "w") | return alert_error("Couldn't open " || temp_name)
+
+      #
+      # Output any new imports
+      #
+      imports_out(f)
+
+      reading_class := &null
+      every s := !part1 do {
+         s ? {
+            if ="class " then {
+               # Substitute our own class and superclass name
+               s := "class " || self.parent_Canvas.name || " : " || 
+                  self.parent_Canvas.superclass_name || "("
+               tab(upto('('))
+               move(1)
+               s ||:= tab(0)
+               &subject := s
+               reading_class := 1
+            }
+            if \reading_class then {
+               # Look for the end of the class variables and insert our
+               # new variables.
+               if s := tab(upto(')')) then {
+                  reading_class := &null
+                  #
+                  # Add any new class vars.
+                  #
+                  if *class_vars > 0 then {
+                     if s[-1] ~== "(" then
+                        s ||:= ", "
+                     every s ||:= !sort(class_vars) || ", "
+                     s[-2:0] := ""
+                  }
+                  s ||:= tab(0)
+               }
+            }
+            write(f, s)
+         }
+      }
+
+      if self.methods_out(f) then
+         write(f)
+      self.setup_out(f)
+
+      every s := !part2 do {
+         #
+         # Map v1 initially call to v2.
+         #
+         s ? {
+            tab(many(' '))
+            if match("self$_Dialog.initially()") then
+               s[&pos:0] := "self.Dialog.initially()"
+         }
+         write(f, s)
+      }
+
+      encoded_canvas_out(f)
+
+      close(f)
+
+      #
+      # Everything okay, so rename
+      #
+      remove(dest_name)
+      rename(temp_name, dest_name) | stop("Couldn't rename new source file " || temp_name || " to " || dest_name)
+
+      return
+   end
+
+   #
+   # Output the encoded canvas, splitting the output over several
+   # comment lines.
+   #
+   method encoded_canvas_out(f)
+      local s
+      write(f, v2_marker)
+      lang::encode(parent_Canvas) ? {
+         while not(pos(0)) do
+            write(f, "#", move(70) | tab(0))
+      }
+   end
+
+   #
+   # Generate the import declaration.  Fails if no import is output.
+   #
+   method imports_out(f)
+      local s
+      if *imports = 0 then
+         fail
+      every write(f, "import " || !imports)
+      if "gui" == !imports then
+         write(f, "$include \"guih.icn\"")
+      return
+   end
+
+   #
+   # Generate the head of the dialog.
+   #
+   method header_out(f)
+      local s, t
+      s := "class " || self.parent_Canvas.name || " : " || self.parent_Canvas.superclass_name
+      t := ""
+      every t ||:= !sort(class_vars) || ", "
+      t[-2:0] := ""
+      write(f, s, "(", t, ")")
+   end
+
+   #
+   # Generate the methods.  Fails if no methods are output.
+   #
+   method methods_out(f)
+      local rec, count
+      if *methods = 0 then
+         fail
+      count := 0
+      every rec := (!sort(methods))[2] do {
+         if count > 0 then
+            write(f)
+         write(f, indent1, "method " || rec.name || "(" || rec.params || ")")
+         # The method handle_v2_events is a special case...
+         if rec.name == "handle_v2_events" then
+            write(f, indent2, "dialog_event(V2TOV1(", rec.params, "))")
+         else
+            every write(f, indent2, !rec.body)
+         write(f, indent1, "end")
+         count +:= 1
+      } 
+      return
+   end
+
+   #
+   # Generate the setup() method with the code.
+   #
+   method setup_out(f)
+      local t, l, s
+
+      write(f, indent1, "method setup()")
+
+      #
+      # Local variables.
+      #
+      if *local_vars > 0 then {
+         t := ""
+         every t ||:= !sort(local_vars) || ", "
+         write(f, indent2, "local ", t[1:-2])
+      }
+
+      #
+      # Dialog attribs.
+      #
+      l := ["size=" || self.parent_Canvas.w || "," || self.parent_Canvas.h] ||| self.parent_Canvas.dialog_struct.attribs
+      write(f, indent2, "self.set_attribs(", list2string(l), ")")
+      #
+      # Minimum size.
+      #
+      if \ (self.parent_Canvas.dialog_struct.min_width | self.parent_Canvas.dialog_struct.min_height) then {
+         s := indent2 || "self.set_min_size("
+         s ||:= \self.parent_Canvas.dialog_struct.min_width
+         s ||:= ", "
+         s ||:= \self.parent_Canvas.dialog_struct.min_height
+         s ||:= ")"
+         write(f, s)
+      }
+      #
+      # Ticker
+      #
+      if \self.parent_Canvas.dialog_struct.ticker_rate then
+         write(f, indent2, "self.set_ticker(", self.parent_Canvas.dialog_struct.ticker_rate, ")")
+      #
+      # Insert the code already generated by the components.
+      every write(f, indent2, !code)
+
+      write(f, indent1, "end")
+   end
+
+   method initially_out(f)
+      write(f, indent1, "initially")
+      write(f, indent2, "self.Dialog.initially()")
+      if /self.parent_Canvas.gen_component_setup then
+         write(f, indent2, "self.setup()")
+   end
+
+   #
+   # Generate a main procedure. 
+   #
+   method main_out(f)
+      write(f, "procedure main()")
+      write(f, indent1, "local d")
+      write(f, indent1, "d := ", self.parent_Canvas.name, "()")
+      if /self.parent_Canvas.gen_component_setup & /self.parent_Canvas.gen_initially then
+         write(f, indent1, "d.setup()")
+      write(f, indent1, "d.show_modal()")
+      write(f, "end")
+   end
+
+   initially
+      class_vars := set()
+      local_vars := set()
+      code := []
+      methods := table()
+      imports := set()
+end

@@ -1,0 +1,549 @@
+version	U12.1.00
+uid	test.u1-1609053809-0
+record	room,1
+	0,name
+record	item,1
+	0,name
+record	food,1
+	0,name
+record	location,2
+	0,room
+	1,item
+impl	local
+link	C:/Users/HP/Dropbox/Scoel/UniconStuff/logic.u
+link	C:/Users/HP/Dropbox/Scoel/UniconStuff/Logic.u
+global	5
+	0,000011,room,1
+	1,000011,item,1
+	2,000011,food,1
+	3,000011,location,2
+	4,000005,main,0
+
+proc main
+	local	0,000020,result
+	local	1,000020,kitchen
+	local	2,000020,dining
+	local	3,000020,table
+	local	4,000020,plate
+	local	5,000020,refrigerator
+	local	6,000020,stove
+	local	7,000020,apple
+	local	8,000020,orange
+	local	9,000020,logic
+	local	10,000020,q
+	local	11,000000,Logic___Scoel_Logic
+	local	12,000000,room
+	local	13,000000,item
+	local	14,000000,food
+	local	15,000000,x
+	local	16,000000,location
+	local	17,000000,ruleDef
+	local	18,000000,write
+	local	19,000000,rule
+	con	0,010000,7,113,151,164,143,150,145,156
+	con	1,010000,6,104,151,156,151,156,147
+	con	2,010000,5,124,141,142,154,145
+	con	3,010000,5,120,154,141,164,145
+	con	4,010000,12,122,145,146,162,151,147,145,162,141,164,157,162
+	con	5,010000,5,123,164,157,166,145
+	con	6,010000,5,141,160,160,154,145
+	con	7,010000,6,157,162,141,156,147,145
+	con	8,010000,15,012,106,151,156,141,154,040,122,145,163,165,154,164,072,040
+	declend
+	filen	test.icn
+	line	48
+	colm	11
+	synt	any
+	mark	L1
+	pnull
+	var	9
+	var	11
+	line	62
+	colm	37
+	synt	any
+	invoke	0
+	line	62
+	colm	15
+	synt	any
+	asgn
+	unmark
+lab L1
+	mark	L2
+	pnull
+	var	1
+	var	12
+	str	0
+	line	64
+	colm	24
+	synt	any
+	invoke	1
+	line	64
+	colm	17
+	synt	any
+	asgn
+	unmark
+lab L2
+	mark	L3
+	pnull
+	var	2
+	var	12
+	str	1
+	line	65
+	colm	23
+	synt	any
+	invoke	1
+	line	65
+	colm	16
+	synt	any
+	asgn
+	unmark
+lab L3
+	mark	L4
+	pnull
+	var	3
+	var	13
+	str	2
+	line	66
+	colm	22
+	synt	any
+	invoke	1
+	line	66
+	colm	15
+	synt	any
+	asgn
+	unmark
+lab L4
+	mark	L5
+	pnull
+	var	4
+	var	13
+	str	3
+	line	67
+	colm	22
+	synt	any
+	invoke	1
+	line	67
+	colm	15
+	synt	any
+	asgn
+	unmark
+lab L5
+	mark	L6
+	pnull
+	var	5
+	var	13
+	str	4
+	line	68
+	colm	29
+	synt	any
+	invoke	1
+	line	68
+	colm	22
+	synt	any
+	asgn
+	unmark
+lab L6
+	mark	L7
+	pnull
+	var	6
+	var	13
+	str	5
+	line	69
+	colm	22
+	synt	any
+	invoke	1
+	line	69
+	colm	15
+	synt	any
+	asgn
+	unmark
+lab L7
+	mark	L8
+	pnull
+	var	7
+	var	14
+	str	6
+	line	70
+	colm	22
+	synt	any
+	invoke	1
+	line	70
+	colm	15
+	synt	any
+	asgn
+	unmark
+lab L8
+	mark	L9
+	pnull
+	var	8
+	var	14
+	str	7
+	line	71
+	colm	23
+	synt	any
+	invoke	1
+	line	71
+	colm	16
+	synt	any
+	asgn
+	unmark
+lab L9
+	mark	L10
+	pnull
+	var	15
+	line	73
+	colm	14
+	synt	any
+	keywd	null
+	line	73
+	colm	11
+	synt	any
+	asgn
+	unmark
+lab L10
+	mark	L11
+	pnull
+	var	9
+	line	75
+	colm	14
+	synt	any
+	field	addPredicate
+	var	1
+	line	75
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L11
+	mark	L12
+	pnull
+	var	9
+	line	76
+	colm	14
+	synt	any
+	field	addPredicate
+	var	2
+	line	76
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L12
+	mark	L13
+	pnull
+	var	9
+	line	77
+	colm	14
+	synt	any
+	field	addPredicate
+	var	3
+	line	77
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L13
+	mark	L14
+	pnull
+	var	9
+	line	78
+	colm	14
+	synt	any
+	field	addPredicate
+	var	4
+	line	78
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L14
+	mark	L15
+	pnull
+	var	9
+	line	79
+	colm	14
+	synt	any
+	field	addPredicate
+	var	5
+	line	79
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L15
+	mark	L16
+	pnull
+	var	9
+	line	80
+	colm	14
+	synt	any
+	field	addPredicate
+	var	6
+	line	80
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L16
+	mark	L17
+	pnull
+	var	9
+	line	81
+	colm	14
+	synt	any
+	field	addPredicate
+	var	3
+	line	81
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L17
+	mark	L18
+	pnull
+	var	9
+	line	82
+	colm	14
+	synt	any
+	field	addPredicate
+	var	7
+	line	82
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L18
+	mark	L19
+	pnull
+	var	9
+	line	83
+	colm	14
+	synt	any
+	field	addPredicate
+	var	8
+	line	83
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L19
+	mark	L20
+	pnull
+	var	9
+	line	85
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	2
+	var	3
+	line	85
+	colm	36
+	synt	any
+	invoke	2
+	line	85
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L20
+	mark	L21
+	pnull
+	var	9
+	line	86
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	2
+	var	4
+	line	86
+	colm	36
+	synt	any
+	invoke	2
+	line	86
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L21
+	mark	L22
+	pnull
+	var	9
+	line	87
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	1
+	var	5
+	line	87
+	colm	36
+	synt	any
+	invoke	2
+	line	87
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L22
+	mark	L23
+	pnull
+	var	9
+	line	88
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	1
+	var	6
+	line	88
+	colm	36
+	synt	any
+	invoke	2
+	line	88
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L23
+	mark	L24
+	pnull
+	var	9
+	line	89
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	2
+	var	7
+	line	89
+	colm	36
+	synt	any
+	invoke	2
+	line	89
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L24
+	mark	L25
+	pnull
+	var	9
+	line	90
+	colm	14
+	synt	any
+	field	addPredicate
+	var	16
+	var	1
+	var	8
+	line	90
+	colm	36
+	synt	any
+	invoke	2
+	line	90
+	colm	27
+	synt	any
+	invoke	1
+	unmark
+lab L25
+	mark	L26
+	pnull
+	var	17
+	pnull
+	var	16
+	var	2
+	var	15
+	line	96
+	colm	29
+	synt	any
+	invoke	2
+	var	14
+	line	96
+	colm	46
+	synt	any
+	invoke	0
+	line	96
+	colm	20
+	synt	any
+	llist	2
+	line	96
+	colm	17
+	synt	any
+	asgn
+	unmark
+lab L26
+	mark	L27
+	var	18
+	var	15
+	line	97
+	colm	14
+	synt	any
+	invoke	1
+	unmark
+lab L27
+	mark	L28
+	pnull
+	var	19
+	pnull
+	var	9
+	line	98
+	colm	22
+	synt	any
+	field	makeRule
+	var	17
+	line	98
+	colm	31
+	synt	any
+	invoke	1
+	line	98
+	colm	14
+	synt	any
+	asgn
+	unmark
+lab L28
+	mark	L29
+	pnull
+	var	0
+	pnull
+	var	19
+	line	99
+	colm	23
+	synt	any
+	field	forwardProcess
+	line	99
+	colm	38
+	synt	any
+	invoke	0
+	line	99
+	colm	16
+	synt	any
+	asgn
+	unmark
+lab L29
+	mark	L30
+	var	18
+	str	8
+	pnull
+	var	9
+	line	100
+	colm	40
+	synt	any
+	field	listContents
+	var	0
+	line	100
+	colm	53
+	synt	any
+	invoke	1
+	line	100
+	colm	14
+	synt	any
+	invoke	2
+	unmark
+lab L30
+	pnull
+	line	103
+	colm	1
+	synt	any
+	pfail
+	end

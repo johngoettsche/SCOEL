@@ -1,0 +1,483 @@
+#
+# $Id: menu.icn,v 1.8 2006-07-09 23:43:07 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This class encapsulates a drop down menu, or a sub-menu.
+#
+# The left, centre and right labels/images of the elements
+# within it are formatted within the menu automatically.
+#
+class Menu : SubMenu(
+   w,                       #         
+   h,                       #         
+   max_label_left_w,        #                        
+   max_label_mid_w,         #                       
+   max_label_right_w,       #                         
+   temp_win,                #                
+   which_open,              #                  
+   which_highlight,         #
+   children                 #
+   )
+
+   method set_parent_component(x)
+      self.MenuComponent.set_parent_component(x)
+      every (!self.children).set_parent_component(x)
+      return
+   end
+
+   #
+   # Add the given {MenuComponent} to the Menu.
+   #
+   # @param c   The {MenuComponent} to add.
+   # @param i   The index to add at; if omitted then the new component
+   # @          is appended to the end.
+   #
+   method add(c, i)
+      if /i then 
+         put(self.children, c)
+      else
+         self.children := self.children[1 : i] ||| [c] ||| self.children[i : 0]
+      c.set_parent(self)
+   end
+
+   #
+   # Remove the {MenuComponent} from the menu.
+   # @param c   The {MenuComponent} to remove.
+   #
+   method remove(c)
+      local i
+      every i := 1 to *self.children do {
+         if self.children[i] === c then {
+            delete(self.children, i)
+            return
+         }
+      }
+   end
+
+   method get_which_open()
+      return self.which_open
+   end
+
+   method resize()
+      local cw, dy, m
+
+      cw := self.parent_component.cwin
+
+      self.h := self.max_label_left_w := self.max_label_right_w := self.max_label_mid_w := 0
+
+      dy := BORDER_WIDTH
+
+      every m := !self.children do {
+         #
+         # Set x, y of label position for sub items.
+         #
+         m.set_label_pos(self.x + BORDER_WIDTH, self.y + dy)
+         #
+         # Set their label size.
+         #
+         m.size_label()
+         #
+         # Increment height; compute maximum label element widths.
+         #
+         self.h +:= m.label_h
+         self.max_label_left_w <:= m.label_left_w
+         self.max_label_right_w <:= m.label_right_w
+         self.max_label_mid_w <:= m.label_mid_w
+
+         dy +:= m.label_h
+      }
+
+      #
+      # Height of object is height of total labels within, plus top and bottom border widths.
+      #
+      self.h +:= 2 * BORDER_WIDTH
+
+      #
+      # Width is total of all maximum label elements, plus left and right border widths.
+      #
+      self.w := self.max_label_left_w + self.max_label_mid_w + self.max_label_right_w + 2 * BORDER_WIDTH
+
+      #
+      # Compute x, y positions of sub-menus and descend recursively.
+      #
+      every m := !self.children do
+         if m.is_sub_menu() then {
+            m.set_abs_coords(self.x + self.w, m.label_y - BORDER_WIDTH)
+            m.resize()
+         }
+   end
+
+   #
+   # Deduce which label is under pointer, if any
+   #
+   # @p
+   method which_item()
+      local m
+      every m := !self.children do {
+         if /m.is_shaded_flag & (m.label_y <= &y < m.label_y + m.label_h) then
+            return m
+      }
+   end
+
+   method display()
+      local cw, c
+      if /self.temp_win then {
+         #
+         # Open a temporary area for the menu and copy.
+         #
+         self.temp_win := WOpen("canvas=hidden", "size=" || self.w || "," || self.h)
+         CopyArea(self.parent_component.cwin, self.temp_win, self.x, self.y, self.w, self.h, 0, 0)
+      }
+
+      cw := self.parent_component.cbwin
+
+      #
+      # Clear area and draw rectangle around whole
+      #
+      EraseRectangle(cw, self.x, self.y, self.w, self.h)
+      DrawRaisedRectangle(cw, self.x, self.y, self.w, self.h)
+
+      #
+      # Draw individual items, with rectangle around open sub-item
+      #
+      every c := !self.children do {
+         c.display_label(self.max_label_left_w, self.max_label_mid_w, self.max_label_right_w)
+         if c === \self.which_highlight then 
+            DrawRaisedRectangle(cw, c.label_x, c.label_y, self.w - 2 * BORDER_WIDTH, c.label_h)
+      }
+      CopyArea(cw, self.parent_component.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+   end
+
+   #
+   # If the presently selected item is a sub-menu, don't unselect it;
+   # just close any non-sub-menu in it by calling recursively.
+   #
+   # @p
+   method drag_off()
+      if \self.which_open then
+         return self.which_open.drag_off()
+      else
+         return self.set_which_highlight()
+   end
+
+   #
+   # Go to the first non-shaded item.
+   #
+   method cursor_on()
+      local m
+      every m := !children do {
+         if not(m.is_shaded()) then {
+            set_which_highlight(m)
+            return
+         }
+      }
+   end
+
+   #
+   # Set the open sub-menu to x
+   #
+   # @p
+   method set_which_open(x)
+      if (self.which_open ~=== x) | (self.which_highlight ~=== x) then {
+         # Hide any existing open submenu
+         (\self.which_open).hide()
+         self.which_highlight := self.which_open := x
+         # If it's a open submenu, display it
+         (\self.which_open).display()
+         self.display()
+      }
+      return x
+   end
+
+   #
+   # Set the present highlight to x, which_open to null
+   #
+   # @p
+   method set_which_highlight(x)
+      #
+      # Do nothing if x presently open
+      #
+      if (self.which_highlight ~=== x) | \self.which_open then {
+         (\self.which_open).hide()
+         self.which_highlight := x
+         self.which_open := &null
+         self.display()
+      }
+      return x
+   end
+
+   #
+   # Test whether pointer within label area.  Top and bottom borders are outside this region.
+   #
+   # @p
+   method in_button_region()
+      return (self.x <= &x < self.x + self.w) &  (self.y + BORDER_WIDTH <= &y < self.y + self.h - BORDER_WIDTH)
+   end
+
+   method handle_key_up(e)
+      local m, last
+
+      if \self.which_open then {
+         self.which_open.handle_event(e)
+         return
+      }
+ 
+      every m := !children do {
+         if \last & m === which_highlight then {
+            set_which_highlight(last)
+            return
+         }
+         m.is_shaded() | (last := m)
+      }
+      set_which_highlight(\last)
+   end
+
+   method handle_key_down(e)
+      local m, t, first
+      
+      if \self.which_open then {
+         self.which_open.handle_event(e)
+         return
+      }
+
+      every m := !children do {
+         if not(m.is_shaded()) then {
+            if /self.which_highlight | \t then {
+               set_which_highlight(m)
+               return
+            }
+            /first := m
+         }
+         if m === which_highlight then
+            t := m
+      }
+      set_which_highlight(\first)
+   end
+
+   method handle_key_right(e)
+      if \self.which_open then 
+         self.which_open.handle_event(e)
+      else if /self.which_highlight then
+         self.cursor_on() | parent_component.go_right()
+      else if self.which_highlight.is_sub_menu() then {
+         set_which_open(self.which_highlight)
+         self.which_open.cursor_on()
+      } else
+         parent_component.go_right()
+   end
+
+   method handle_key_left(e)
+      if \self.which_open then 
+         self.which_open.handle_event(e)
+      else if /parent then
+         parent_component.go_left()
+      else
+         parent.set_which_highlight(self)
+   end
+
+   method handle_key_escape(e)
+      if \self.which_open then 
+         self.which_open.handle_event(e)
+      else if /parent then
+         parent_component.make_partial()
+      else
+         parent.set_which_highlight(self)
+   end
+
+   method handle_key_return(e)
+      if \self.which_open then 
+         self.which_open.handle_event(e)
+      else if \self.which_highlight then {
+         if self.which_highlight.is_sub_menu() then {
+            set_which_open(self.which_highlight)
+            self.which_open.cursor_on()
+         } else
+            self.which_highlight.succeed(e)
+      }
+   end
+
+   method handle_press(e)
+      local m
+
+      if in_button_region() then {
+         #
+         # Mouse press in region.  Open the item where the pointer is
+         # or clear highlight (eg if over a shaded item).
+         #
+         if m := self.which_item() then {
+            if m.is_sub_menu() then
+               self.set_which_open(m)
+            else
+               self.set_which_highlight(m)
+         } else
+            self.set_which_highlight()
+      } else {
+         if \self.which_open then
+            #
+            # Try open sub-menu.
+            #
+            self.which_open.handle_event(e)
+         else
+            #
+            # Fail completely, pass on event to other objects.
+            #
+            close_all()
+      }
+   end
+
+   method handle_release(e)
+      if in_button_region() then {
+         #
+         # Mouse released over region
+         #
+         if \self.which_highlight then {
+            #
+            # If item selected and not a sub-menu, return its selected
+            # event.  If sub-menu, this will just stay open.
+            #
+            if self.which_highlight.is_sub_menu() then
+               set_which_open(self.which_highlight)
+            else
+               self.which_highlight.succeed(e)
+         } else
+            #
+            # Close completely, don't pass on event. 
+            #
+            close_all(1)
+      } else {
+         if \self.which_open then
+            #
+            # Try open sub-menu.
+            #
+            self.which_open.handle_event(e)
+         else
+            #
+            # Fail completely, don't pass on event.
+            #
+            close_all(1)
+      }
+   end
+
+   method handle_drag(e)
+      local t
+      if in_button_region() then {
+         #
+         # Drag over region.
+         #
+         if t := self.which_item() then {
+            if t === self.which_highlight then {
+               #
+               # Drag over label of open sub-item.  If a menu unselect any
+               # items, except sub menus.
+               #
+               if \self.which_open then
+                  t.drag_off()
+            } else {
+               #
+               # Open/highlight the selected item.
+               #
+               if t.is_sub_menu() then
+                  self.set_which_open(t)
+               else
+                  self.set_which_highlight(t)
+            }
+         } else
+            #
+            # Not over an item (eg shaded item).  Clear selection.
+            #
+            self.set_which_highlight()
+      } else {
+         if \self.which_open then
+            #
+            # Pass event on to open sub menu.
+            #
+            self.which_open.handle_event(e)
+         else
+            #
+            # Clear present selection, except sub-menus.
+            #
+            self.drag_off()        
+      }
+   end
+
+   method handle_default(e)
+      local m
+
+      if \self.which_open then
+         self.which_open.handle_event(e)
+      else {
+         if m := find_key(e) then {
+            if m.is_sub_menu() then {
+               set_which_open(m)
+               m.cursor_on()
+            } else
+               m.succeed(e)
+         }
+      }
+   end
+
+   method find_key(k)
+      local m
+      every m := !children do {
+         if m.accel === k & not(m.is_shaded()) then
+            return m
+      }
+   end
+
+   method handle_event(e)
+      if e === (&lpress | &rpress | &mpress) then 
+         handle_press(e)
+      else if e === (&lrelease | &rrelease | &mrelease) then 
+         handle_release(e)
+      else if e === (-12 | &ldrag | &rdrag | &mdrag) then 
+         handle_drag(e)
+      else {
+         case e of {
+            Key_Up: handle_key_up(e)
+            Key_Down: handle_key_down(e)
+            Key_Right: handle_key_right(e)
+            Key_Left: handle_key_left(e)
+            "\e" : handle_key_escape(e)
+            "\r" | " " : handle_key_return(e)
+            default: handle_default(e)
+         }
+      }
+   end
+
+   #
+   # Close this menu.
+   #
+   # @p
+   method hide()
+      local cw
+      #
+      # Recursively close any open sub-menu.
+      #
+      set_which_open()
+
+      #
+      # Restore window area.
+      #
+      cw := self.parent_component.cwin
+      EraseRectangle(cw, self.x, self.y, self.w, self.h)
+      CopyArea(self.temp_win, self.parent_component.cwin, 0, 0, self.w, self.h, self.x, self.y)
+      WClose(self.temp_win)
+      self.temp_win := &null
+   end
+
+   initially(a[])
+      self.SubMenu.initially()
+      self.children := []
+      self.set_img_right(img_style("arrow_right"))
+      set_fields(a)
+end

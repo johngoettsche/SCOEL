@@ -1,0 +1,61 @@
+import model, view, control
+
+package sample
+#these first couple of lines are the header for the file.
+#They identify what needs to be loaded and the name of the package.
+#I would prefer the name of the package match the file name.
+
+
+class Main
+	#this is where you would put any main methods and variables
+initially()
+	#this is where the main executable expressions will be located
+end
+
+#these would probably be located in another package in a large program but this is just an example
+#showing what I would like the classes to look like
+
+class Person
+	static idCount := 1 #only a single instance of idCount for all Person objects
+	readOnly name, id #variables that can only be read and may not be altered without a method call
+
+	#A method to mutate the name variable
+	method changeName(nuName)
+		name := nuName
+	end
+		
+initially(nuName) #Constructor
+	name := nuName
+	id := idCount
+	idCount +:= 1
+end
+
+class Student : Person
+	readOnly classes, gpa
+	local fees  
+	#all variable instaniation will require an accessability code 
+	#	(local, global, readOnly or hidden)
+	#local variables can only be seen and edited inside the class or method
+	#global variables can be seen and edited anywhere
+	#readOnly variables can be seen anywere, but may not be edited
+	#hidden variables can only be seen anywhere and edited from within the class and 
+	#	those classes that inherit them
+		
+	method addClass(cl)
+		classes.add(cl)
+	end
+	
+	method calculateGPA()
+	
+	end
+	
+initially()
+	classes := list()
+end
+
+#This should look familiar, because its format was taken from Union.
+#my goal is to create an object oriented language with goal directed evaluation which is simple and 
+#clear for the programmer.  The language will be designed to perform string or data analysis 
+#with a set of primitive scanning and matching functions which can be combined into patterns or 
+#executed as needed.
+

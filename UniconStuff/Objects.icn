@@ -1,0 +1,1045 @@
+package Objects
+
+record Scannable_Result(start, finish)
+
+
+#The classes in this small sample are written in Unicon.
+class _Scoel_Object(_o_name)
+	method desc()
+		
+	end
+	
+	method id()
+		local txt, result;
+		
+		txt := image(self)
+		txt ? {
+			tab(many(&letters))
+			tab(&pos + 1)
+			result := tab(upto("("))
+		}
+		write(result)
+	end
+	
+	method image()
+		return image(self)
+	end
+	
+	method methods()
+		return methodnames(self)
+	end
+	
+	method objectName()
+		return _o_name
+	end
+	
+	method subName()
+		return _sub_name
+	end
+	
+	method toString()
+		return _o_name
+	end
+	
+	method type()
+		local txt, result;
+		
+		txt := image(self)
+		txt ? {
+			result := tab(many(&letters))
+		}
+		return result
+	end
+	
+	method vars()
+		
+	end
+	
+initially()
+	
+end
+#########################################################
+
+class _Scoel_Extraction()
+	local	
+		_sub_name, 
+		previous, 
+		follow,  
+		stack, 
+		fScanObj, 
+		bScanObj, 
+		fScanResult, 
+		bScanResult, 
+		oldPos, 
+		subject, 
+		pos, 
+		fcount,
+		bcount,
+		stop, 
+		suc;
+		
+#	method fScan(subject, pos)
+#	method bScan(subject, pos, success)
+
+	method resolve(success, s)
+		stop := s
+		if \fScanResult & success == "success" then { #success
+			every result := !fScanResult do {
+				push(stack, result)
+				pos := result.finish
+				fcount +:= 1
+			#	if pos > stop then stop := pos
+				if \bScanResult then {
+					every result := !bScanResult do {
+						put(stack, result)
+						pos := result.finish
+						bcount +:= 1
+					}
+				}
+			}
+		} else {
+			pos := oldPos
+			every 1 to fcount do {
+				pop(stack)
+				fcount -:= 1
+			}
+			every 1 to bcount do {
+				pull(stack)
+				bcount -:= 1
+			}
+		}
+		if \previous then {
+			previous.bScan(subject, stop, success)
+		} else {
+			suc := success
+		}
+	end	
+initially()
+	
+end
+
+class _Scoel_Extr_Anchored_Fetch : _Scoel_Extraction()
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		oldPos := pos
+		fScanResult := &null
+		if \fScanObj then {
+			fScanResult := fScanObj.scan(subject, pos)
+		} else {
+			self.resolve("terminate", pos)
+		}
+		if \fscanResult then {
+			pos := fScanResult[*fScanResult].finish
+			follow.fScan(subject, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		oldPos := pos
+		bScanResult := &null
+		if \bScanObj then {
+			bScanResult := bScanObj.scan(subject, pos)
+		} else {
+			self.resolve(success, pos)
+		}
+		if \bScanResult then {
+			pos := bScanResult[*scanResult].finish
+			self.resolve(success, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+initially(prev, fol, st, fso, bso)
+	
+	_o_name := "Extraction"
+	_sub_name := "Extr_Anchored_Fetch"
+	previous := prev
+	follow := fol
+	fScanObj := fso
+	bScanObj := bso
+	stack := st
+end
+
+class _Scoel_Extr_Unanchored_Fetch : _Scoel_Extraction()
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		oldPos := pos
+		fScanResult := &null
+		if \fScanObj then {
+			fScanResult := fScanObj.scan(subject, pos)
+			while /fscanResult & pos < *subject do {
+				pos +:= 1
+				fScanResult := fScanObj.scan(subject, pos)
+			}
+		} else {
+			self.resolve("terminate", pos)
+		}
+		if \fscanResult then {
+			pos := fScanResult[*fScanResult].finish
+			follow.fScan(subject, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		oldPos := pos
+		bScanResult := &null
+		if \bScanObj then {
+			bScanResult := bScanObj.scan(subject, pos)
+		} else {
+			self.resolve(success, pos)
+		}
+		if \bScanResult then {
+			pos := bScanResult[*scanResult].finish
+			self.resolve(success, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+initially(prev, fol, st, fso, bso)
+	_o_name := "Extraction"
+	_sub_name := "Extr_Unanchored_Fetch "
+	previous := prev
+	follow := fol
+	fScanObj := fso
+	bScanObj := bso
+	stack := st
+end
+
+class _Scoel_Extr_Anchored_Pass : _Scoel_Extraction()
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		oldPos := pos
+		fScanResult := &null
+		if \fScanObj then {
+			fScanResult := fScanObj.scan(subject, pos)
+		} else {
+			self.resolve("terminate", pos)
+		}
+		if \fscanResult then {
+			pos := fScanResult[*fScanResult].finish
+			follow.fScan(subject, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		oldPos := pos
+		bScanResult := &null
+		if \bScanObj then {
+			bScanResult := bScanObj.scan(subject, pos)
+		} else {
+			self.resolve(success, pos)
+		}
+		if \bScanResult then {
+			pos := bScanResult[*scanResult].finish
+			self.resolve(success, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method resolve(success, s)
+		stop := s
+		if \scanResult & success == "success" then {
+			pos := scanResult[*scanResult].finish
+		} else {
+			pos := oldPos
+			depth +:= 1
+		}
+		if \previous then {
+			previous.bScan(subject, stop, success)
+		} else {
+			suc := success
+		}
+	end
+initially(prev, fol, st, fso, bso)
+	_o_name := "Extraction"
+	_sub_name := "Extr_Anchored_Pass"
+	previous := prev
+	follow := fol
+	fScanObj := so
+	stack := st
+end
+
+class _Scoel_Extr_Unanchored_Pass : _Scoel_Extraction()
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		oldPos := pos
+		fScanResult := &null
+		if \fScanObj then {
+			fScanResult := fScanObj.scan(subject, pos)
+			while /fscanResult & pos < *subject do {
+				pos +:= 1
+				fScanResult := fScanObj.scan(subject, pos)
+			}
+		} else {
+			self.resolve("terminate", pos)
+		}
+		if \fscanResult then {
+			pos := fScanResult[*fScanResult].finish
+			follow.fScan(subject, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		oldPos := pos
+		bScanResult := &null
+		if \bScanObj then {
+			bScanResult := bScanObj.scan(subject, pos)
+		} else {
+			self.resolve(success, pos)
+		}
+		if \bScanResult then {
+			pos := bScanResult[*scanResult].finish
+			self.resolve(success, pos)
+		} else {
+			self.resolve("fail", pos)
+		}
+	end
+	
+	method resolve(success, s)
+		stop := s
+		if \scanResult & success == "success" then {
+			pos := scanResult[*scanResult].finish
+		} else {
+			pos := oldPos
+			depth +:= 1
+		}
+		if \previous then {
+			previous.bScan(subject, stop, success)
+		} else {
+			suc := success
+		}
+	end
+initially(prev, fol, st, fso, bso)
+	_o_name := "Extraction"
+	_sub_name := "Extr_Unanchored_Pass"
+	previous := prev
+	follow := fol
+	fScanObj := so
+	stack := st
+end
+
+
+
+
+class _Scoel_Extr_End : _Scoel_Extraction()
+	local	
+		successMessage;
+		
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		self.resolve(successMessage, pos)
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		self.resolve(successMessage, pos)
+	end
+	
+	method resolve(success, s)
+		stop := s
+		previous.bScan(subject, pos, success)
+	end
+initially(prev, st, sm)
+	_o_name := "Extraction"
+	_sub_name := "Extr_End" || sm
+	previous := prev
+	if previous._sub_name == "Ret_End" then previous.follow := &null
+	follow := &null
+	stack := st
+	successMessage := sm
+end
+
+class _Scoel_Extr_Fence : _Scoel_Extraction()
+	local
+		successMessage;
+		
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		scanResult := []
+		push(scanResult, Scannable_Result(pos, pos))
+		follow.fScan(subject, pos)
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		self.resolve(success, pos)
+	end
+	
+	method resolve(success, s)
+		stop := s
+		if success == "success" | "fail" then {
+			previous.bScan(subject, pos, success)
+		} else {
+			previous.bScan(subject, pos, "terminate")
+		}
+	end
+initially(prev, fol, st, sm)
+	_o_name := "Extraction"
+	_sub_name := "Extr_Fence_" || sm
+	previous := prev
+	follow := fol
+	successMessage := sm
+	stack := st
+end
+
+class _Scoel_Extr_OR : _Scoel_Extraction()
+	local
+		fScanObj1, 
+		fScanObj2, 
+		current;
+		
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		oldPos := pos
+		if \current then {
+			scanResult := current.scan(subject, pos)
+		} else {
+			self.resolve("terminate", pos)
+		}
+		if \scanResult then {
+			pos := scanResult.finish
+			follow.fScan(subject, pos)
+		} else {
+			if current === fScanObj1 then {
+				current := fScanObj2
+				scanResult := fScan(subject, pos)
+				if \scanResult then {
+					pos := scanResult.finish
+					follow.fScan(subject, pos)
+				} else {
+					self.resolve("fail", pos)
+				}
+			} else {
+				current := fScanObj1
+				self.resolve("fail", pos)
+			}
+		}
+	end
+	
+	method bScan(sub, p, success)
+		self.resolve(success, pos)
+	end
+initially(prev, fol, st, so1, so2)
+	_o_name := "Extraction"
+	_sub_name := "Extr_OR"
+	previous := prev
+	follow := fol
+	fScanObj1 := so1
+	fScanObj2 := so2	
+	bScanObj := _Scoel_Null_Scan()
+	current := arg1
+	stack := st
+end
+
+class _Scoel_Extr_SubPattern : _Scoel_Extraction() #parenthesis
+	local
+		internalStack;
+		
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		fScanObj.fScan(subject, pos)
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		bScanResult := bScanObj.bScan(subject, pos, success)
+		pos := bScanResult.finish
+		self.resolve(success, pos)
+	end
+	
+	method resolve(success, s)
+		stop := s
+		if *internalStack > 0 & success == "success" then { #success
+			if \bScanResult then {
+				every result := !bScanResult do {
+					put(internalStack, result)
+					pos := result.finish
+					bcount +:= 1
+				}
+				every sr := !internalStack do {
+					push(stack, sr)
+				}
+			} else {
+				success := "fail"
+				pos := oldPos
+			}
+		} else {
+			pos := oldPos
+		}
+		if \previous then {
+			previous.bScan(subject, stop, success)
+		} else {
+			suc := success
+		}
+	end	
+initially(prev, fol, st, fso, bso)
+	_o_name := "Extraction"
+	_sub_name := "Extr_SubPattern"
+	previous := prev
+	follow := fol
+	fScanObj := fso #first element in parenthesis
+	bScanObj := bso #last element in parenthesis
+	stack := st
+	internalStack := []
+end
+
+class _Scoel_Extr_PatternDef : _Scoel_Extraction() #parenthesis
+	local
+		internalStack;
+		
+	method fScan(sub, p)
+		subject := sub
+		pos := p
+		fScanObj.fScan(subject, pos)
+	end
+	
+	method bScan(sub, p, success)
+		subject := sub
+		pos := p
+		bScanResult := bScanObj.bScan(subject, pos, success)
+		pos := bScanResult.finish
+		self.resolve(success, pos)
+	end
+	
+	method resolve(success, s)
+		stop := s
+		if *internalStack > 0 & success == "success" then { #success
+			if \bScanResult then {
+				every result := !bScanResult do {
+					put(internalStack, result)
+					pos := result.finish
+					bcount +:= 1
+				}
+				every sr := !internalStack do {
+					push(stack, sr)
+				}
+			} else {
+				success := "fail"
+				pos := oldPos
+			}
+		} else {
+			pos := oldPos
+		}
+		if \previous then {
+			previous.bScan(subject, stop, success)
+		} else {
+			suc := success
+		}
+	end	
+initially(prev, fol, st, fso, bso)
+	_o_name := "Extraction"
+	_sub_name := "Extr_SubPattern"
+	previous := prev
+	follow := fol
+	fScanObj := fso #first element in parenthesis
+	bScanObj := bso #last element in parenthesis
+	stack := st
+	internalStack := []
+end
+
+class _Scoel_Extr_Factory(stack)
+	method make_pat_anchored_fetch(prev, follow, stack, arg1, arg2)
+		return _Scoel_Extr_Anchored_Fetch(prev, follow, stack, arg1, arg2) 
+	end
+	
+	method make_pat_unanchored_fetch(prev, follow, stack, arg1, arg2)
+		return _Scoel_Extr_Unanchored_Fetch(prev, follow, stack, arg1, arg2) 
+	end
+	
+	method make_pat_anchored_pass(prev, follow, stack, arg1, arg2) 
+		return _Scoel_Extr_Anchored_Pass(prev, follow, stack, arg1, arg2)
+	end
+	
+	method make_pat_unanchored_pass(prev, follow, stack, arg1, arg2)
+		return _Scoel_Extr_Unanchored_Pass(prev, follow, stack, arg1, arg2) 
+	end
+	
+	method make_pat_fence(prev, follow, stack, success)
+		return _Scoel_Extr_Fence(prev, follow, stack, success)
+	end
+	
+	method make_pat_or(prev, follow, stack, arg1, arg2)
+		return _Scoel_Extr_OR(prev, follow, stack, arg1, arg2)
+	end
+	
+	method make_end(prev, stack, success)
+		return _Scoel_Extr_End(prev, stack, success)
+	end
+	
+	method make_string_anchored_fetch(stack, arg1, arg2)
+		local
+			cap,
+			fetch;
+		
+		cap := self.make_end(&null, stack, "success")
+		fetch := _Scoel_Extr_Anchored_Fetch(&null, cap, stack, arg1, arg2) 
+		cap.previous := fetch
+		return fetch
+	end
+	
+	method make_string_unanchored_fetch(stack, arg1, arg2)
+		local
+			cap,
+			fetch;
+		
+		cap := self.make_end(&null, stack, "success")
+		fetch := _Scoel_Extr_Unanchored_Fetch(&null, cap, stack, arg1, arg2) 
+		cap.previous := fetch
+		return fetch
+	end
+	
+	method make_string_anchored_pass(stack, arg1, arg2)
+		local
+			cap,
+			pass;
+		
+		cap := self.make_end(&null, stack, "success")
+		pass := _Scoel_Extr_Anchored_Pass(&null, cap, stack, arg1, arg2) 
+		cap.previous := pass
+		return pass
+	end
+	
+	method make_string_unanchored_pass(stack, arg1, arg2)
+		local
+			cap,
+			pass;
+		
+		cap := self.make_end(&null, stack, "success")
+		pass := _Scoel_Extr_Unanchored_Pass(&null, cap, stack, arg1, arg2) 
+		cap.previous := pass
+		return pass
+	end
+initially()
+	
+end
+
+############## Scan ######################################
+
+class _Scoel_Scan : _Scoel_Object(_sub_name, scanResult, stack)
+
+#	method scan(subject, pos)
+	
+initially()
+
+end
+
+class _Scoel_Null_Scan : _Scoel_Scan()
+	
+	method scan(subject, pos)
+		return []
+	end
+
+initially()
+	_o_name := "Null"
+	_sub_name := "Scan_Null"
+end
+
+class _Scoel_Any_Scan : _Scoel_Scan(arg)
+	method scan(subject, pos)
+		scanResult := []
+		if /arg then {
+			if pos <= *subject then {
+				push(scanResult, Scannable_Result(pos, pos + 1))
+				pos +:= 1
+			} else {
+				scanResult := &null
+				depth := 0
+				self.resolve("fail")
+			}
+		} else if type(arg) == "cset" then {
+			if member(arg, subject[pos]) & pos <= *subject then {
+				push(scanResult, Scannable_Result(pos, pos + 1))
+			} else {
+				scanResult := &null
+				depth := 0
+				self.resolve("fail")
+			}
+		} else {
+			write("&null or cset expected as an argument")
+		}
+		if *scanResult > 0 then return scanResult
+	end
+initially(s, a)
+	_o_name := "Scan"
+	_sub_name := "Scan_Any"
+	arg := a
+	stack := s
+end
+
+class _Scoel_Many_Scan : _Scoel_Scan(arg1, arg2)
+	method scan(subject, pos)
+		local start, stop, count;
+
+		scanResult := []
+		if /arg1 then {
+			push(scanResult, Scannable_Result(pos, *subject))
+		} else if \arg2 then {
+			if type(arg2) == "integer" then {
+				stop := pos
+				if type(arg1) == "cset" then {
+					write("cset found with second argument")	
+					count := 0
+					while (member(arg1, subject[stop])) & count < arg2 & stop <= *subject do {
+						stop +:= 1
+						count +:= 1
+					}
+					if stop - pos = arg1 then {
+						push(scanResult, Scannable_Result(pos, stop))
+					} else {
+						self.resolve("fail")
+					}
+				}else if arg1._o_name == "String" then {
+					write("String found with second argument")
+					start := pos
+					stop := pos + *arg1
+					count := 0
+					if arg2 > 0 then {
+						while subject[start:stop] == arg1 & stop <= *subject & count < arg2 do {
+							start := stop
+							stop +:= *arg1
+							count +:= 1
+						}
+						if count = arg2 then {
+							push(scanResult, Scannable_Result(pos, stop))
+						} else {
+							self.resolve("fail")
+						}
+					} else {
+						while subject[start:stop] == arg1 & stop <= *subject do {
+							start := stop
+							stop +:= *arg1
+							count +:= 1
+						}
+						if count > 0 then {
+							push(scanResult, Scannable_Result(pos, stop))
+						} else {
+							self.resolve("fail")
+						}
+					}
+				} else if arg1._o_name == "Extraction" then {
+					write(arg1._o_name || " found with second argument")	
+					scanResult := arg1.fScan(subject, pos)
+					if \scanResult then {
+						arg1 := subject[scanResult.start, scanResult.finish]
+						push(scanResult, fScan(subject, pos))
+					} else {
+						self.resolve("fail")
+					}
+				} else {
+					write("second argument must be an integer")
+				}
+			}
+		} else if type(arg1) == "integer" then {
+			if  pos + arg1 <= *subject then {
+				push(scanResult, Scannable_Result(pos, pos + arg1))
+			} else {
+				self.resolve("fail")
+			}
+		} else if type(arg1) == "cset" then {
+			stop := pos
+			while member(arg1, subject[stop]) & stop <= *subject do {
+				stop +:= 1
+			}
+			push(scanResult, Scannable_Result(pos, stop))
+		} else if type(arg1) == "string" then {
+			write("String found")
+			stop := pos + *arg1
+			if subject[pos:stop] == arg1 & stop <= *subject then {
+				push(scanResult, Scannable_Result(pos, stop))
+			} else {
+				self.resolve("fail")
+			}
+		} else if arg1._o_name == "Extraction" then {
+			write(arg1._o_name || " found")
+			arg1.fScan(subject, pos)
+		} 
+		if *scanResult > 0 then return scanResult
+	end
+initially(s, a1, a2)
+	_o_name := "Scan"
+	_sub_name := "Scan_Many"
+	arg1 := a1
+	arg2 := a2
+	stack := s
+end
+
+class _Scoel_Upto_Scan : _Scoel_Scan(arg)
+	method scan(subject, pos)
+		local start, stop, count;
+
+		scanResult := []
+		if /arg1 then {
+			write("Upto() function must have an argument")
+		} else if \arg then {
+			if type(arg) == "integer" then {
+				if  pos + arg1 <= *subject then {
+					push(scanResult, Scannable_Result(pos, pos + arg))
+				} 
+			} else if type(arg) == "cset" then {
+				stop := pos
+				while member(arg, subject[stop]) & stop <= *subject do {
+					stop +:= 1
+				}
+				push(scanResult, Scannable_Result(pos, stop))
+			} else if arg._o_name == "String" then {
+				write("String found")
+				stop := pos + *arg
+				if subject[pos:stop] == arg & stop <= *subject then {
+					push(scanResult, Scannable_Result(pos, stop))
+				} 
+			} else if arg._o_name == "Extraction" then {
+				write(arg._o_name || " found")
+				push(scanResult, arg.fScan(subject, pos))
+			} 
+		} else {
+			self.resolve("terminate")
+		}
+		if *scanResult > 0 then return scanResult
+	end
+initially(s, a1, a2)
+	_o_name := "Scan"
+	_sub_name := "Scan_Upto"
+	arg1 := a1
+	arg2 := a2
+	stack := s
+end
+
+#################  Extractable  ##############################################
+
+class _Scoel_Extractable(_sub_name, subject, pos)		
+	method fetch(fScanObj, bScanObj)
+		local 
+			factory,
+			cap,
+			extraction,
+			oldPos,
+			result,
+			stack,
+			success;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_anchored_fetch(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		extraction.fScan(subject, pos)
+		success := extraction.suc
+		if success == "success" then {
+			pos := extraction.stop
+			result := ""
+			every item := !stack do{
+				result ||:= subject[item.start:item.stop]
+			}
+			return result
+		} else {
+			pos := oldPos
+		}
+	end
+	
+	method Fetch(fScanObj, bScanObj)
+		local 
+			factory,
+			cap,
+			extraction,
+			oldPos,
+			result,
+			stack,
+			success;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_unanchored_fetch(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		extraction.fScan(subject, pos)
+		success := extraction.suc
+		if success == "success" then {
+			pos := extraction.stop
+			result := ""
+			every item := !stack do{
+				result ||:= subject[item.start:item.stop]
+			}
+			return result
+		} else {
+			pos := oldPos
+		}
+	end
+	
+	method pass(fScanObj, bScanObj)
+		local 
+			factory,
+			oldPos,
+			cap,
+			stack,
+			extraction;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_anchored_pass(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		extraction.fScan(subject, pos)
+		success := retreaval.suc
+		if success == "success" then {
+			pos := extraction.stop
+		} else {
+			pos := oldPos
+		}
+	end
+	
+	method Pass(fScanObj, bScanObj)
+		local 
+			factory,
+			oldPos,
+			cap,
+			stack,
+			extraction;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_unanchored_pass(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		extraction.fScan(subject, pos)
+		success := retreaval.suc
+		if success == "success" then {
+			pos := extraction.stop
+		} else {
+			pos := oldPos
+		}
+	end
+	
+	method colate(fScanObj, bScanObj)
+		local 
+			factory,
+			cap,
+			extraction,
+			oldPos,
+			result,
+			stack,
+			success;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_anchored_fetch(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		extraction.fScan(subject, pos)
+		success := extraction.suc
+		if success == "success" then {
+			pos := extraction.stop
+			result := []
+			every item := !stack do{
+				put(result, subject[item.start:item.stop])
+			}
+			return result
+		} else {
+			pos := oldPos
+		}
+	end
+	
+	method tabulate(fScanObj, bScanObj)
+		local 
+			factory,
+			oldPos,
+			cap,
+			stack,
+			count,
+			extraction;
+		
+		stack := []
+		oldPos := pos
+		factory := _Ret_Factory(stack)
+		cap := factory.make_end(&null, stack, "success")
+		extraction := factory.make_string_anchored_pass(&null, cap, stack, fScanObj, bScanObj)
+		cap.previous := extraction
+		count := 0
+		while pos < *subject do {
+			extraction.fScan(subject, pos)
+			success := retreaval.suc
+			if success == "success" then {
+				count +:= 1
+			} 
+			pos +:= 1
+		}
+		pos := oldPos
+		return count
+	end
+	
+	method setPos(arg)
+		pos := arg
+	end
+	
+	method getPos()
+		return pos
+	end
+	
+	method reset()
+		pos := 1
+	end
+	
+	method incrument()
+		if pos <= *subject then pos +:= 1
+	end
+	
+	method decrument()
+		if pos > 1 then pos -:= 1
+	end
+	
+	method get(arg)
+		if \arg then {
+			return subject[pos : pos + 1]
+		} else {
+			if type(arg) == "integer" then {
+				return subject[arg : arg + 1]
+			} else {
+				write("get argument must be an integer value")
+			}
+		}
+	end
+initially()
+	
+end
+
+#The string class will have a set of string analysis methods and a pattern match method
+class _Scoel_String : _Scoel_Extractable : _Scoel_Object()
+	
+initially(s)
+	_o_name := "String"
+	_sub_name := "Iterable_String"
+	subject := s
+	pos := 1
+end

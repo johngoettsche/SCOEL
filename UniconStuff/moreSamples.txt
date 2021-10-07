@@ -1,0 +1,41 @@
+more sample code:
+
+upto() moves the index up to the first instance of the argument, does not set a start location and does
+not fail.
+
+span() sets the start at the index location, moves the index up to the last instance of the argument, 
+it does set the finish location at the end of the matched characters
+
+pat := span(&digits)
+
+str := String("The phone number is 555 - 1245.")
+
+result := str.match(pat) 
+would search for a digit to start at until it reached the 5 setting the start at that locaion, then it would
+span the next three fives and put the finish at that location.  resulting in: '555'
+
+If I want to get the entire number then I could save a list of starts and finishes and define 
+pat := span(&digits) upto(&digits) span(&digits)
+resulting in: 5551245
+
+-?- I don't think Unicon pattern matching does not match portions of a string and combines them -?-
+
+a similar way to do it would be
+
+str.upto(&digits) #passes over all the characters until if finds a digit
+result := str.span(&digits) #returns the three fives '555'
+str.upto(&digits) #passing over ' - '
+result +:= str.span(&digits) returns the final four numbers '1245'
+
+result = '5551245'
+
+Structures:
+Or
+
+pat := ("b" | "c") "oat"
+str := "My coat" 
+
+result := str.match(pat)
+It would search until it finds either a 'b' or a 'c' and set the start of the match there then would 
+match 'oat' for 'coat'.
+

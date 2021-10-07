@@ -1,0 +1,219 @@
+#
+# $Id: hfiledialog.icn,v 1.3 2010-04-29 03:08:27 hanibs0 Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+# Updated by Hani Bani-Salameh (hsalameh@vandals.uidaho.edu)
+
+import gui
+link graphics
+
+$include "guih.icn"
+
+$ifdef _MS_WINDOWS_NT
+$define PATHCHAR "\\"
+$else
+$define PATHCHAR "/"
+$endif
+
+#
+# HFile dialog class.  See gui/filedialog.icn
+# This class provides the following differences from FileDialog:
+# It maintains file extension information, defaulting to look for .icn files.
+#
+class HFileDialog : FileDialog(
+   file_extension,	    # File type extension
+   fext_list,		    # File extension list
+   init_fileType
+   )
+
+   #
+   # Set the initial files type
+   #
+   method set_file_type(s)
+      return self.init_fileType := s
+   end
+
+   #
+   # Set the initial file/directory from a whole path.
+   # 
+   method set_path(s)
+      self.FileDialog.set_path(s)
+      self.init_fileType := "*.icn"
+      return s
+   end
+
+   method on_file_extension()
+      on_fextension_change()
+   end
+
+   method on_dlist()
+      local s, value, l
+      #
+      # Clicked in the directory list; get the item clicked on.
+      #
+      value := dlist.get_contents()[dlist.get_selections()[1]]
+      s := self.get_std_dir()
+      #
+      # Go to parent directory (unless at root directory)
+      #
+      if \value == (".." || PATHCHAR) then {    
+         if s ~== PATHCHAR then {
+            s[-1] := ""
+            while s[-1] ~== PATHCHAR do s[-1] := ""
+	    }
+         dir.set_contents(s)
+         }
+      else
+         dir.set_contents(s ||:= \value)
+      #
+      # Update directory and file lists.
+      #
+      l := (get_directory_list(s,fext_list[file_extension.get_selection()]) | [[],[]])
+      dlist.set_contents(l[1])
+      dlist.goto_pos(1, 0)
+      dlist.clear_selections()
+      flist.set_contents(l[2])
+      flist.goto_pos(1, 0)
+      flist.clear_selections()
+      file.set_contents("")
+   end
+   method on_fextension_change()
+      local value, s, l
+      #
+      # Changed the file extension list; get the item clicked on.
+      #
+      value := dlist.get_contents()[dlist.get_selections()[1]]
+      s := self.get_std_dir()
+      #
+      # Go to parent directory (unless at root directory)
+      #
+      if \value == (".." || PATHCHAR) then {    
+	 if s ~== PATHCHAR then {
+	    s[-1] := ""
+	    while s[-1] ~== PATHCHAR do s[-1] := ""
+	    }
+	 dir.set_contents(s)
+	 }
+      else
+         dir.set_contents(s ||:= \value)
+      #
+      # Update directory and file lists.
+      #
+      l := (get_directory_list(s,fext_list[file_extension.get_selection()]) | [[],[]])
+      dlist.set_contents(l[1])
+      dlist.goto_pos(1, 0)
+      dlist.clear_selections()
+      flist.set_contents(l[2])
+      flist.goto_pos(1, 0)
+      flist.clear_selections()
+   end
+
+   #
+   # Double click on a filename in the file list and you open it,
+   # except if the click was really on one of your scrollbars.
+   # TODO: can the click ever be in some other invalid area?
+   #
+   method on_flist_lpress(ev)
+   local sb
+      if get_click_count() = 2 then {
+	 if (sb := \ (flist.vsb | flist.hsb)) &
+	    (sb.x <= &x <= sb.x+sb.w) & (sb.y <= &y <= sb.y+sb.h) then
+	       fail
+	 set_result()
+	 dispose()
+	 }
+   end
+
+   method on_dir()
+      local s, l
+      #
+      # Return pressed in directory TextField; update lists.
+      #
+      dir.set_contents(s := self.get_std_dir())
+      l := (get_directory_list(s,fext_list[file_extension.get_selection()]) | [[],[]])
+      dlist.set_contents(l[1])
+      dlist.goto_pos(1, 0)
+      dlist.clear_selections()
+      flist.set_contents(l[2])
+      flist.goto_pos(1, 0)
+      flist.clear_selections()
+      file.set_contents("")
+   end
+
+   method component_setup()
+      local l
+      #extChoosed := "FALSE"
+      #
+      # Defaults if none set by caller.
+      #
+      if /init_dir | (init_dir == "") then {
+	 init_dir := chdir() | PATHCHAR
+	 }
+      /init_file := ""
+      /init_fileType := ""
+      if (init_dir[-1] ~== PATHCHAR) then init_dir ||:= PATHCHAR
+
+      l := Label("pos=25,25", "align=l,c", "label=Directory")
+      self.add(l)
+      dir := TextField("pos=100,25", "size=100%-150", "align=l,c", "accel=d")
+      dir.connect(self, "on_dir", ACTION_EVENT)
+      dir.set_contents(init_dir)
+      self.add(dir)
+      l.set_linked_accel(dir)
+
+      l := Label("pos=25,60", "align=l,c", "label=File")
+      self.add(l)
+      file := TextField("pos=100,60", "size=100%-150", "align=l,c", "accel=f")
+      file.connect(self, "on_file", ACTION_EVENT)
+      file.set_contents(init_file)
+      self.add(file)
+      l.set_linked_accel(file)
+
+      l := Label("pos=25,95", "align=l,c", "label=File Type")
+      self.add(l)
+      file_extension := List()
+      file_extension.set_pos("100", "80")
+      file_extension.set_size("100%-150", "20")
+      file_extension.connect(self, "on_file_extension",
+			     SELECTION_CHANGED_EVENT)
+      file_extension.set_selection_list(["All Files(*.*)",
+					 "Unicon Files(*.icn)",
+                                         "Project Files(*.uprj)"])
+      file_extension.set_selection(2)
+      self.add(file_extension)
+      l.set_linked_accel(file_extension)
+
+      l := (get_directory_list(init_dir,
+			       fext_list[file_extension.get_selection()]) |
+	    [[],[]])
+
+      dlist := TextList("pos=25,110", "size=50%-38,100%-170", "select_one",
+			"selection_on_key_moves=f")
+      dlist.connect(self, "on_dlist", SELECTION_CHANGED_EVENT)
+      dlist.set_contents(l[1])
+      self.add(dlist)
+
+      flist := TextList("pos=50%+12,110", "size=50%-38,100%-170", "select_one",
+			"selection_on_key_moves=f")
+      flist.connect(self, "on_flist", SELECTION_CHANGED_EVENT)
+      flist.connect(self, "on_flist_lpress", MOUSE_PRESS_EVENT)
+      flist.set_contents(l[2])
+      self.add(flist)
+
+      okay := TextButton("pos=33%,100%-30", "align=c,c","label=Okay","accel=o")
+      okay.connect(self, "on_okay", ACTION_EVENT)
+      self.add(okay)
+
+      cancel := TextButton("pos=66%,100%-30", "align=c,c", "label=Cancel",
+			   "accel=c")
+      cancel.connect(self, "dispose", ACTION_EVENT)
+      self.add(cancel)
+   end
+
+initially(a[])
+   self.FileDialog.initially()
+   set_fields(a)
+   fext_list :=["*.*", ".icn", ".uprj"]
+end

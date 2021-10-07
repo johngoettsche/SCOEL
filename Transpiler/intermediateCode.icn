@@ -1,0 +1,216 @@
+#procedure generate_instruction(opcode, address1, address2, address3)
+#	return [tc_code(opcode, address1, address2, address3)]
+#end
+
+#procedure generate_label()
+#	return Address("label", serial.getid())
+#end
+
+#procedure generate_local()
+#
+#end
+
+class TC_code()
+	local
+		opcode,
+		arg1,
+		arg2,
+		arg3
+	
+	method to_string()
+		local
+			str
+			
+		str := opcode || "["
+		if \arg1 then str ||:= arg1
+		if \arg2 then str ||:= ", " || arg2
+		if \arg3 then str ||:= ", " || arg3
+		str ||:= "]"
+		return str
+	end
+initially(op, a1,a2,a3)
+	opcode := op
+	arg1 := a1
+	arg2 := a2
+	arg3 := a3
+end
+
+class TC_add : TC_code()
+initially()
+	self$TC_code.initially("add")
+end
+
+class TC_alloc : TC_code()
+initially(arg1)
+	self$TC_code.initially("alloc", arg1)
+end
+
+class TC_and : TC_code()
+initially()
+	self$TC_code.initially("and")
+end
+
+class TC_call : TC_code()
+initially()
+	self$TC_code.initially("call")
+end
+
+class TC_div : TC_code()
+initially()
+	self$TC_code.initially("div")
+end
+
+class TC_dup : TC_code()
+initially()
+	self$TC_code.initially("dup")
+end
+
+class TC_enter : TC_code()
+initially(arg1)
+	self$TC_code.initially("enter", arg1)
+end
+
+class TC_eq : TC_code()
+initially()
+	self$TC_code.initially("eq")
+end
+
+class TC_geq : TC_code()
+initially()
+	self$TC_code.initially("geq")
+end
+
+class TC_gr : TC_code()
+initially()
+	self$TC_code.initially("gr")
+end
+
+class TC_halt : TC_code()
+initially()
+	self$TC_code.initially("halt")
+end
+
+class TC_jump : TC_code()
+initially(arg1)
+	self$TC_code.initially("jump", arg1)
+end
+
+class TC_jumpi : TC_code()
+initially(arg1)
+	self$TC_code.initially("jumpi", arg1)
+end
+
+class TC_jumpz : TC_code()
+initially(arg1)
+	self$TC_code.initially("jumpz", arg1)
+end
+
+class TC_le : TC_code()
+initially()
+	self$TC_code.initially("le")
+end
+
+class TC_leq : TC_code()
+initially()
+	self$TC_code.initially("leq")
+end
+
+class TC_load : TC_code()
+initially()
+	self$TC_code.initially("load")
+end
+
+class TC_loada : TC_code()
+initially(arg1, arg2)
+	self$TC_code.initially("loada", arg1, arg2)
+end
+
+class TC_loadc : TC_code()
+initially(arg1)
+	self$TC_code.initially("loadc", arg1)
+end
+
+class TC_loadr : TC_code()
+initially(arg1)
+	self$TC_code.initially("loadr", arg1)
+end
+
+class TC_loadrc : TC_code()
+initially(arg1)
+	self$TC_code.initially("loadrc", arg1)
+end
+
+class TC_malloc : TC_code()
+initially(arg1)
+	self$TC_code.initially("malloc", arg1)
+end
+
+class TC_mark : TC_code()
+initially()
+	self$TC_code.initially("mark")
+end
+
+#class TC_mod : TC_code()
+#initially()
+#	self$TC_code.initially("mod")
+#end
+
+class TC_mul : TC_code()
+initially()
+	self$TC_code.initially("mul")
+end
+
+class TC_neg : TC_code()
+initially()
+	self$TC_code.initially("neg")
+end
+
+class TC_neq : TC_code()
+initially()
+	self$TC_code.initially("neq")
+end
+
+class TC_new : TC_code()
+initially()
+	self$TC_code.initially("new")
+end
+
+class TC_or : TC_code()
+initially()
+	self$TC_code.initially("or")
+end
+
+class TC_pop : TC_code()
+initially(arg1)
+	self$TC_code.initially("pop", arg1)
+end
+
+class TC_return : TC_code()
+initially(arg1)
+	self$TC_code.initially("return", arg1)
+end
+
+class TC_slide : TC_code()
+initially(arg1, arg2)
+	self$TC_code.initially("slide", arg1, arg2)
+end
+
+class TC_store : TC_code()
+initially()
+	self$TC_code.initially("store")
+end
+
+class TC_storea : TC_code()
+initially(arg1, arg2)
+	self$TC_code.initially("storea", arg1, arg2)
+end
+
+class TC_storer : TC_code()
+initially(arg1, arg2)
+	self$TC_code.initially("storer", arg1, arg2)
+end
+
+class TC_sub : TC_code()
+initially()
+	self$TC_code.initially("sub")
+end

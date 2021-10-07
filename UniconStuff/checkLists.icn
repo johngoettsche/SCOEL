@@ -1,0 +1,7 @@
+procedure main()
+	every j := (1 to 5) do {
+		every k:= (3 to 7) do {
+			if k < j then write(k)
+		}
+	}
+end

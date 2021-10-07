@@ -1,0 +1,55 @@
+: "$Id: Test-icont,v 1.2 2001-12-13 22:38:08 phliar Exp $"
+
+IC=${IC-icont}
+IC=../../bin/$IC
+
+#  check that icont and iconx have been built
+ls $IC ../../bin/iconx >/dev/null || exit 0
+
+
+case `uname` in 
+     *"NT"*) NT=1;; 
+esac;
+
+for F in `cat $1.lst`
+do
+   rm -f local/$F.out
+   echo Translating $F
+   $IC -s $F.icn
+   echo Running $F
+   if test -r $F.dat
+   then
+      ../../bin/iconx $F <$F.dat >local/$F.out 2>&1
+   else
+      ../../bin/iconx $F >local/$F.out 2>&1
+   fi
+   echo Checking $F
+
+   # Assume that NT in uname means Windows
+   if [ -n "$NT" ]; then
+      if test -r stand/$F.wstd; then
+	  diff -w stand/$F.wstd local/$F.out
+      else
+	  diff -w stand/$F.std local/$F.out
+      fi	  
+   else
+      diff stand/$F.std local/$F.out
+   fi
+
+   # diff returns one if there is a difference
+   if [ $? -eq 1 ]; then
+      L=$L"\n\t"$F
+    fi
+
+   rm -f $F $F.c $F.h
+done
+
+echo "\n===== Test Result ===="
+if [ -n "$L" ]; then
+    echo "Failed Tests:"
+    echo $L
+else
+    echo "          Pass"
+fi
+echo "========================"
+

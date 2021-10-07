@@ -1,0 +1,23 @@
+#
+# $Id: cdialog.icn,v 1.2 2004-09-18 18:45:18 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+import lang
+import gui
+
+#
+# Extends Dialog to enable saving of some fields.
+#
+class CDialog : Dialog : SelectiveClassCoding(ticker_rate)
+   method get_template()
+      return [["Min Width", "min_width"], 
+              ["Min Height", "min_height"], 
+              ["Ticker Rate", "ticker_rate"],
+              ["Attribs", "attribs"]
+              ]
+   end
+end

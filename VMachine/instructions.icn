@@ -1,0 +1,264 @@
+
+class instruction()
+	local 
+		arg1,
+		arg2,
+		arg3,
+		label
+		
+	abstract method execute()
+	
+	method to_string()
+		local
+			str
+			
+		str := label
+		if \arg1 then {
+			if type(arg1) ?? "address" then {
+				str ||:= " " || arg1.block || "-" || arg1.offset
+			} else {
+				str ||:= " " || arg1
+			}
+		}
+		if \arg2 then {
+			if type(arg2) ?? "address" then {
+				str ||:= " " || arg2.block || "-" || arg2.offset
+			} else {
+				str ||:= " " || arg2
+			}	
+		}
+		if \arg3 then {
+			if type(arg3) ?? "address" then {
+				str ||:= " " || arg3.block || "-" || arg3.offset
+			} else {
+				str ||:= " " || arg3
+			}
+		}
+		return str
+	end
+initially(l, a1, a2, a3)
+	label := l
+	arg1 := a1
+	arg2 := a2
+	arg3 := a3
+end
+
+###############################################################
+
+# pops the top two items on the machine stack adds them and pushes the 
+# result on to the machine stack
+class Add : instruction()
+	method execute()
+		local
+			pop1,
+			pop2
+		
+		pop1 := pop(machine.stack)
+		if type(pop1) ?? "identifier" then pop1 := pop1.value
+		pop2 := pop(machine.stack)
+		if type(pop2) ?? "identifier" then pop2 := pop2.value
+		push(machine.stack, pop1 + pop2)
+	end
+initially()
+	self$instruction.initially("add")
+end
+
+# pops the top two items on the machine stack and divides the first
+# item by the second item and pushes the result onto the machine stack
+class Div : instruction()
+	method execute()
+		local
+			pop1,
+			pop2
+			
+		pop1 := pop(machine.stack)
+		if type(pop1) ?? "identifier" then pop1 := pop1.value
+		pop2 := pop(machine.stack)
+		if type(pop2) ?? "identifier" then pop2 := pop2.value
+		push(machine.stack, pop1 / pop2)
+	end
+initially()
+	self$instruction.initially("div")
+end
+
+# Terminates opperation of the machine
+class Halt : instruction()
+	method execute()
+		machine.continue := "false"
+	end
+initially()
+	self$instruction.initially("halt")
+end
+
+class LoadItem : instruction()			
+	method execute()
+		ident := machine.identifiers[arg1]
+		addr := ident.address
+		value := ident.value
+		block := addr.block
+		offset := addr.offset
+		machine.memory.block[block][offset] := value
+	end
+initially(arg1, arg2, arg3)
+	self$instruction.initially("storea", arg1, arg2, arg3)
+end
+
+
+class Load : instruction()	
+	local
+		addr,
+		block,
+		ident,
+		offset,
+		top,
+		value
+		
+	method execute()
+		top := machine.stack[1]
+		if type(top) ?? "identifier" then {
+			value := top.value
+		} else {
+			value := top
+		}
+		block := "stack"
+		offset:= machine.stackPointer
+		machine.stackPointer +:= 1
+		addr := address(block, offset)
+		ident := identifier(addr, arg1)
+		machine.identifiers[arg1] := ident
+		insert(machine.memory.block[block], offset, value)
+	end
+initially(arg)
+	self$instruction.initially("load", arg)
+end
+
+class Loada : instruction()	
+	local
+		addr,
+		block,
+		ident,
+		label,
+		offset
+		
+	method execute()
+		ident := machine.identifiers[arg1]
+		push(machine.stack, ident)
+	end
+initially(label)
+	self$instruction.initially("loada", label)
+end
+
+# Load Constant creates an identifier for the argument, stores in the 
+# memory stack and pushes the argument on to the machine stack
+class Loadc : instruction()
+	method execute()
+		addr := address("stack", machine.stackPointer)
+		machine.stackPointer +:= 1
+		ident := identifier(addr, arg1)
+		machine.identifiers
+		push(machine.stack, ident.value)
+	end
+initially(arg)
+	self$instruction.initially("loadc", arg)
+end
+
+class Mul : instruction()
+	method execute()
+		local
+			pop1,
+			pop2
+			
+		pop1 := pop(machine.stack)
+		if type(pop1) ?? "identifier" then pop1 := pop1.value
+		pop2 := pop(machine.stack)
+		if type(pop2) ?? "identifier" then pop2 := pop2.value
+		push(machine.stack, value1 * value2)
+	end
+initially()
+	self$instruction.initially("mul")
+end
+
+class Neg : instruction()
+	method execute()
+		local
+			value1
+			
+		value1 := pop(machine.stack)
+		if type(value1) ?? "identifier" then value1 := value1.value
+		push(machine.stack, -value1)
+	end
+initially()
+	self$instruction.initially("neg")
+end
+
+class Pop : instruction()
+	method execute()
+		pop(machine.stack)
+	end
+initially()
+	self$instruction.initially("pop")
+end
+
+# Pushes a value onto the machine stack
+class Push : instruction()
+	method execute()
+		push(machine.stack, arg1)
+	end
+initially(arg)
+	self$instruction.initially("pop", arg)
+end
+
+class StoreArg : instruction()
+	method execute()
+		local
+			addr,
+			ident
+			
+		#dword
+		addr := address(STACK, machine.stackPointer)
+		machine.stackPointer +:= 1
+		dword := machine.makeIdentifier(addr, arg1)
+		
+		#vword
+		addr := address(STACK, machine.stackPointer)
+		machine.stackPointer +:= 1
+		if arg1 == 
+		vword := machine.makeIdentifier(addr, arg2)
+	end
+initially(arg1, arg2, arg3)
+	self$instruction.initially("StoreItem", arg1, arg2)
+end
+
+class StoreTop : instruction()
+	method execute()
+		local
+			addr,
+			ident
+		
+		value := machine.stack[1]
+		#create dword
+		
+		#vword
+		addr := address(STACK, machine.stackPointer)
+		machine.stackPointer +:= 1
+		ident := machine.makeIdentifier(addr, value)
+	end
+initially(arg1, arg2, arg3)
+	self$instruction.initially("StoreItem")
+end
+
+class Sub : instruction()
+	method execute()
+		local
+			pop1,
+			pop2
+			
+		pop1 := pop(machine.stack)
+		if type(pop1) ?? "identifier" then pop1 := pop1.value
+		pop2 := pop(machine.stack)
+		if type(pop2) ?? "identifier" then pop2 := pop2.value
+		push(machine.stack, value1 - value2)
+	end
+initially()
+	self$instruction.initially("sub")
+end

@@ -1,0 +1,498 @@
+#
+# $Id: guiprocs.icn,v 1.9 2006-07-10 13:39:49 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"     
+
+procedure EraseRectangle(W, x, y, w, h)
+   if x < 0 then {
+      w +:= x
+      x := 0
+   }
+
+   if y < 0 then {
+      h +:= y
+      y := 0
+   }
+
+   return EraseArea(W, x, y, w, h)
+end
+
+procedure DrawImageEx(W, x, y, i)
+   i := get_extended_image(W, i) | fail
+   #
+   # This gets round a bug whereby painting an image
+   # in a -ve location (off screen) takes a really long
+   # time (it should be a no-op of course).
+   #
+   if x + img_width(i) < 0 & y + img_height(i) < 0 then
+      return
+   DrawImage(W, x, y, i)
+end
+
+procedure PaletteKeyEx(W, palette, spec)
+   local color
+   color := case spec of {
+      "hilite" : WAttrib(get_hilite_win(W), "fg")
+      "shadow" : WAttrib(get_shadow_win(W), "fg")
+      "fg" : WAttrib(W, "fg")
+      "bg" : WAttrib(W, "bg")
+      "trans" : return "\377"
+      default : spec
+   }
+   return PaletteKey(W, palette, color)
+end
+
+procedure get_extended_image(W, img)
+   local s1, s2, head, spec, palette
+
+   img ? {
+      ="(" | return img
+      spec := tab(upto(')')) | fail
+      =")"
+      tab(many(' '))
+      head := tab(upto(',')) || move(1) ||
+         (palette := tab(upto(','))) || move(1) | fail
+
+      s1 := s2 := ""
+      spec ? repeat {
+         tab(many('; '))
+         if pos(0) then 
+            break
+         s1 ||:= move(1) | fail
+         ="=" | fail
+         spec := tab(upto(';') | 0)
+         s2 ||:= PaletteKeyEx(W, palette, spec) | fail
+      }
+      return head || map(tab(0), s1, s2)
+   }
+end
+
+procedure Rectangle(W, x, y, w, h)
+   return DrawRectangle(W, x, y, w - 1, h - 1)
+end
+
+procedure CursorLine(W, x, y, w, h)
+   fc := Fg(W)
+   Fg(W, "black") 
+   #DrawLine(W, x-1, y-1, x-1, y+h+1)
+   DrawLine(W, x, y-1, x, y+h+1)
+   DrawLine(W, x-1, y-1, x+2, y-1)
+   DrawLine(W, x-1, y+h+1, x+2, y+h+1)
+   Fg(W, fc ) 
+end
+
+
+#
+# Return the char width for ch, which may be a tab
+#
+procedure CharWidth(win, ch)
+   if ch == "\t" then
+      return TextWidth(win, " ")
+   else
+      return TextWidth(win, ch)
+end
+
+#
+# Extended TextWidth function, handling tabs in s.  Returns the
+# width of the string from positions i through j.
+#
+procedure TextWidthEx(win, s, i, j, tw)
+   local tp, w, lr, cc, ch
+
+   if /i then {
+      i := 1
+      j := *s + 1
+   } else {
+      /j:= i + 1
+      if j <= 0 then
+         j +:= *s + 1
+   }
+
+   if not upto('\t', s) then
+      return TextWidth(win,s[i:j])
+
+   /tw := 8
+   tp := 0
+   w := 0
+   lr := 0
+   every cc := 1 to *s do {
+      if cc = i then
+         lr := w
+      if cc = j then
+         break
+      ch := s[cc]
+
+      if ch == "\t" then {
+         repeat {
+            w +:= TextWidth(win, " ")
+            tp +:= 1
+            if tp % tw = 0 then 
+               break
+         }
+      } else {
+         w +:= TextWidth(win, ch)
+         tp +:= 1
+      }
+   }
+   return w - lr
+end
+
+#
+# Draw a raised rectangle.
+#
+procedure DrawRaisedRectangle(W, x, y, w, h, i)
+   /i := BORDER_WIDTH
+   BevelRectangle(W, x, y, w, h, i)
+end
+
+#
+# Draw a sunken rectangle.
+#
+procedure DrawSunkenRectangle(W, x, y, w, h, i)
+   /i := -BORDER_WIDTH
+   BevelRectangle(W, x, y, w, h, i)
+end
+
+#
+# Draw a dashed rectangle using the shadow color.
+#
+procedure DashedRectangle(W, x, y, w, h)
+   local cw
+   cw := Clone(get_shadow_win(W), "pattern=gray", "fillstyle=masked")
+   #cw := Clone(W, "fg=black", "pattern=gray", "fillstyle=masked")
+   Rectangle(cw, x, y, w, h)
+   Uncouple(cw)
+end
+
+#
+# Draw an etched line.
+#
+procedure DrawEtchedLine(W, x1, y1, x2, y2, w)
+   /w := 3
+   DrawGroove(W, x1, y1, x2, y2, w)
+end
+
+procedure get_shadow_win(W)
+   return bev_lookup(W).shadow
+end
+
+procedure get_hilite_win(W)
+   return bev_lookup(W).hilite
+end
+
+procedure FilterRectangle(W, x, y, w, h)
+   local cw
+$ifdef _MS_WINDOWS_NT
+   cw := Clone(W, "fillstyle=masked", "drawop=reverse", "pattern=verydark")
+   FillRectangle(cw, x, y, w, h)
+$else
+   cw := Clone(W, "fillstyle=masked", "reverse=on", "pattern=waves")
+   FillRectangle(cw, x, y, w, h)
+$endif
+   Uncouple(cw)
+end
+
+procedure left_string(win, x, y, s, k)
+   local i, x1, y1
+
+   y +:= (WAttrib(win, "ascent") - WAttrib(win, "descent")) / 2
+   DrawString(win, x, y, s)
+   if i := upto(\k, map(s)) then {
+      x1 := x + TextWidth(win, s[1:i])
+      y1 := y + WAttrib(win, "descent") - 1
+      DrawLine(win, x1, y1, x1 + TextWidth(win, s[i]), y1)
+   }
+end
+
+procedure center_string(win, x, y, s, k)
+   left_string(win, x - TextWidth(win, s) / 2, y, s, k)
+end
+
+procedure right_string(win, x, y, s, k) 
+   left_string(win, x - TextWidth(win, s), y, s, k)
+end
+
+procedure img_width(s)
+   s ? {
+      if ="(" then {
+         tab(upto(')')) 
+         move(1)
+      }
+      return integer(tab(upto(',')))
+   }
+end
+
+procedure img_height(s)
+   local w
+   s ? {
+      if ="(" then {
+         tab(upto(')')) 
+         move(1)
+      }
+      w := integer(tab(upto(',')))
+      move(1)
+      tab(upto(','))
+      move(1)
+      return *tab(0) / (0 ~= \w)
+   }
+end
+
+procedure img_style(s)
+   return case s of {
+      "box_up" :
+"(0=shadow;1=hilite;~=trans)13,c6,_
+~~~~~~~~~~~~~_
+~11111111111~_
+~11111111110~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11~~~~~~~00~_
+~11000000000~_
+~10000000000~_
+~~~~~~~~~~~~~_
+"
+         "box_down" :
+"(b=black;0=shadow;1=hilite;~=trans)13,c6,_
+~~~~~~~~~~~~~_
+~00000000001~_
+~00000000001~_
+~00~~~~~~~11~_
+~00~bbbbb~11~_
+~00~bbbbb~11~_
+~00~bbbbb~11~_
+~00~bbbbb~11~_
+~00~bbbbb~11~_
+~00~~~~~~~11~_
+~01111111111~_
+~11111111111~_
+~~~~~~~~~~~~~_
+"
+      "diamond_up2":
+"(0=shadow;1=hilite;~=trans)11,c6,_
+~~~~~1~~~~~_
+~~~~111~~~~_
+~~~11~11~~~_
+~~11~~~11~~_
+~11~~~~~11~_
+11~~~~~~~11_
+~00~~~~~00~_
+~~00~~~00~~_
+~~~00~00~~~_
+~~~~000~~~~_
+~~~~~0~~~~~_
+"
+         "diamond_down2":
+"(b=black;0=shadow;1=hilite;~=trans)11,c6,_
+~~~~~0~~~~~_
+~~~~000~~~~_
+~~~00~00~~~_
+~~00~b~00~~_
+~00~bbb~00~_
+00~bbbbb~00_
+~11~bbb~11~_
+~~11~b~11~~_
+~~~11~11~~~_
+~~~~111~~~~_
+~~~~~1~~~~~_
+"
+
+      "diamond_up" :
+"(0=shadow;1=hilite;~=trans)13,c6,_
+~~~~~~1~~~~~~_
+~~~~~111~~~~~_
+~~~~11~11~~~~_
+~~~11~~~11~~~_
+~~11~~~~~11~~_
+~11~~~~~~~11~_
+11~~~~~~~~~11_
+~00~~~~~~~00~_
+~~00~~~~~00~~_
+~~~00~~~00~~~_
+~~~~00~00~~~~_
+~~~~~000~~~~~_
+~~~~~~0~~~~~~_
+"
+         "diamond_down" :
+"(b=black;0=shadow;1=hilite;~=trans)13,c6,_
+~~~~~~0~~~~~~_
+~~~~~000~~~~~_
+~~~~00~00~~~~_
+~~~00~b~00~~~_
+~~00~bbb~00~~_
+~00~bbbbb~00~_
+00~bbbbbbb~00_
+~11~bbbbb~11~_
+~~11~bbb~11~~_
+~~~11~b~11~~~_
+~~~~11~11~~~~_
+~~~~~111~~~~~_
+~~~~~~1~~~~~~_
+"
+
+      "arrow_up" :
+"11,c1,_
+~~~~~0~~~~~_
+~~~~000~~~~_
+~~~00000~~~_
+~~0000000~~_
+~000000000~_
+00000000000_
+"
+      "arrow_down" :
+"11,c1,_
+00000000000_
+~000000000~_
+~~0000000~~_
+~~~00000~~~_
+~~~~000~~~~_
+~~~~~0~~~~~_
+"
+      "arrow_left" :
+"9,c1,_
+~~~~~~~~0_
+~~~~~~000_
+~~~~00000_
+~~0000000_
+000000000_
+~~0000000_
+~~~~00000_
+~~~~~~000_
+~~~~~~~~0_
+"
+      "arrow_right" : "9,c1,_
+0~~~~~~~~_
+000~~~~~~_
+00000~~~~_
+0000000~~_
+000000000_
+0000000~~_
+00000~~~~_
+000~~~~~~_
+0~~~~~~~~_
+"
+      "closed_folder" : "16,c1,_
+~~~~~~~~~~~~~~~~_
+~~~~0000~~~~~~~~_
+~~~0;;;;0~~~~~~~_
+~~0;;;;;;0~~~~~~_
+~0000000000000~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0;;;;;;;;;;;0~~_
+~0000000000000~~_
+~~~~~~~~~~~~~~~~_
+"
+
+      "open_folder" : "16,c1,_
+~~~~~~~~~~~~~~~~_
+~~~0000~~~~~~~~~_
+~~0DDDD0~~~~~~~~_
+~0DDDDDD0~~~~~~~_
+0000000000000~~~_
+02D2D2D2D2D20~~~_
+0D2D000000000000_
+02D0DDDDDDDDDDD0_
+0D20DDDDDDDDDD0~_
+020DDDDDDDDDDD0~_
+0D0DDDDDDDDDDD0~_
+00DDDDDDDDDD00~~_
+0000000000000~~~_
+~~~~~~~~~~~~~~~~_
+"
+
+      "file" : "16,c1,_
+~~~~~~~~~~~~~~~~_
+~~~0000000~~~~~~_
+~~~06666600~~~~~_
+~~~0606060~0~~~~_
+~~~0666660000~~~_
+~~~0600606660~~~_
+~~~0666666660~~~_
+~~~0600600060~~~_
+~~~0666666660~~~_
+~~~0600060660~~~_
+~~~0666666660~~~_
+~~~0666666660~~~_
+~~~0000000000~~~_
+~~~~~~~~~~~~~~~~_
+"
+
+      "plus" : "9,g2,_
+000000000_
+0~~~~~~~0_
+0~~~0~~~0_
+0~~~0~~~0_
+0~00000~0_
+0~~~0~~~0_
+0~~~0~~~0_
+0~~~~~~~0_
+000000000_
+"
+
+      "minus" : "9,g2,_
+000000000_
+0~~~~~~~0_
+0~~~~~~~0_
+0~~~~~~~0_
+0~00000~0_
+0~~~~~~~0_
+0~~~~~~~0_
+0~~~~~~~0_
+000000000_
+"
+      "tiny_arrow_up" :
+"7,c1,_
+~~~0~~~_
+~~000~~_
+~00000~_
+0000000_
+"
+      "tiny_arrow_down" :
+"7,c1,_
+0000000_
+~00000~_
+~~000~~_
+~~~0~~~_
+"
+      default : stop("unknown image style")
+   }
+end
+
+procedure set_CheckBoxes_by_flag(i, checkboxes)
+   local c, j
+   j := 1
+   every c := !checkboxes do {
+      if iand(i, j) ~= 0 then
+         c.toggle_is_checked()
+      j *:= 2
+   }
+end
+
+procedure get_CheckBoxes_by_flag(checkboxes)
+   local i, j, c
+   i := 1
+   j := 0
+   every c := !checkboxes do {
+      if c.is_checked() then
+         j +:= i
+      i *:= 2
+   }
+   return j
+end
+

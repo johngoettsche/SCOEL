@@ -1,0 +1,40 @@
+# face.icn
+#
+#  Author : Jafar Al-Gharaibeh
+#  Date   : Oct/07/08
+#
+
+package graphics3d
+
+$include "graphics3dh.icn"
+
+#
+#
+#
+class Face (
+   lst_vertex_index,               # list of vertices indecies
+   lst_normal_index,               # list of vertices indecies
+   materialIndex,
+   lst_texcoord                  # *lst_vertex*2
+
+   )
+   method init()
+      lst_vertex_index:= []
+      lst_texcoord := []
+   end
+
+   method has_material()
+      return \materialIndex
+   end
+
+   method set_material_id(i)
+      materialIndex :=  i
+   end
+   
+   method get_material_id()
+      return \materialIndex
+   end
+
+   initially
+      init()
+end

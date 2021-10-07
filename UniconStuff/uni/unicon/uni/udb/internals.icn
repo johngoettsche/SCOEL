@@ -1,0 +1,146 @@
+#
+# internals.icn
+# handles the internals (built-in) monitores that can be used 
+# during the debugging session with UDB
+# Author  : Ziad Al-Sharif
+# Date    : Feb 24, 2008
+# e-mail  : zsharif@gmail.com
+#
+
+$include "defaults.icn"
+$include "evdefs.icn"
+
+#
+# Loads and initializes the internal monitors
+#
+class Internals : Agent()
+
+#
+# Analyzes whatever the internal monitor has collected so far
+#
+method cmdAnalyzeInfo(name)
+   local client, msg:="??"
+
+   if \Clients[name] then{
+      if member(activeClients, name) then
+         Clients[name].AnalyzeInfo()
+      else
+         msg := "\n   The internal monitor ("||name||") is NOT Enabled!"
+      }
+   else
+      msg := "\n   The internal monitor ("||name||") is NOT Found!"
+   DState.Write(msg)
+end
+
+#
+# Prints out whatever the internal monitor has collected so far
+#
+method cmdPrintInfo(name)
+   local client, msg:="??"
+
+   if \Clients[name] then{
+      if member(activeClients, name) then
+         Clients[name].WriteInfo()
+      else
+         msg := "\n   The internal monitor ("||name||") is NOT Enabled!"
+      }
+   else
+      msg := "\n   The internal monitor ("||name||") is NOT Found!"
+   DState.Write(msg)
+end
+
+#
+# Registers an internal monitor: i.e.
+# register("test", obj,  
+#          [handle_event1, handle_event2], [analyze_events], [write1, write2])
+method register(name, client, handler, analyzer, writer, mask)
+   local methodName
+
+   count +:= 1
+   Clients[name] := client
+   insert(disabledClients, name)
+   client.AutoRegister(name, count, DISABLED)
+   
+   #handler: is a list of method names from the internal monitor 
+   if \handler then
+      every methodName := !handler do
+         client.RegisterHandler(methodName)
+
+   #analyzer: is a list of method names from the internal monitor 
+   if \analyzer then
+      every methodName := !analyzer do
+         client.RegisterAnalyzer(methodName)
+
+   #writer: is a list of method names from the internal monitor 
+   if \writer then
+      every methodName := !writer do
+         client.RegisterHandler(methodName)
+
+   #mask: is the set of events needed by the internal monitor 
+   if \mask then
+      client.RegisterEventMask(mask)
+end
+
+#
+# This method is where a user registers an internal monitor
+# to be used under UDB
+#
+method Init()
+   
+   register("counter_syntax",EventCounterSyntax())   ##  TEST
+   register("counter_line",EventCounterLine())       ##  TEST
+   register("counter_pcall",EventCounterPcall())     ##  TEST
+   register("counter_deref",EventCounterDeref())     ##  TEST
+
+   register("memory", Memory(),
+           ["handle_GarbageCollection", "handle_MemoryAllocation"], ,
+           ["write_AllocStateInfo","write_MemoryStateInfo"],
+           cset(E_Exit || E_Error || E_Collect || E_EndCollect) ++ AllocMask)
+
+   register("varprofile", VarProfile(),
+            ["handle_Events"], ,["write_LocalVarInfo","write_GlobalVarInfo"],
+            cset(E_Exit || E_Error || E_Pcall || E_Deref))
+
+   register("procprofile", ProcProfile(),
+            ["handle_Events"], ,["write_Info"],
+            cset(E_Exit || E_Error) ++ ProcMask)
+
+   register("proctime", ProcTime(),
+            ["handle_Events"], ,["write_Info"],
+            cset(E_Exit || E_Error) ++ ProcMask)
+
+   register("failedloop", FailedLoop(),
+             ["handle_Events"], ,["write_Info"],
+             cset(E_Exit || E_Error || E_Pcall || E_Syntax || E_Line))
+
+   register("failedsubscript", FailedSubscript(),
+            ["handle_Events"], ,["write_Info"],
+            cset(E_Exit || E_Error || E_Deref || E_Lref || E_Lsub || E_Ofail))
+
+   register("looptime", LoopTime(),
+           ["handle_Events"], ,["write_Info"],
+           cset(E_Exit || E_Error || E_Line || E_Syntax || E_Pcall))
+
+   register("deadvar", DeadVar(),
+            ["handle_Events"], ,["write_Info"], 
+            cset(E_Exit || E_Error || E_Pcall || E_Assign || E_Deref))
+
+   register("typechange", TypeChange(),
+            ["handle_Events"], ,["write_Info"],
+            cset(E_Exit || E_Error || E_Assign || E_Value))
+
+   register("structusage", StructUsage(),
+            ["handle_Events"], ,["write_Info"],
+            cset(E_Exit || E_Error) ++ 
+            cset(ListMask ++ TableMask ++ SetMask ++ RecordMask))
+end
+
+#
+# initialization
+#
+initially()
+
+   self.Agent.initially("internal")
+   Init()
+   
+end

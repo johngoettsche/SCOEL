@@ -1,0 +1,63 @@
+#
+# $Id: textlist.icn,v 1.4 2006-07-09 23:43:08 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This class displays a list of strings.
+#
+class TextList : SelectableScrollArea()
+   method get_line_height()
+      return WAttrib(self.cwin, "fheight")
+   end
+
+   method get_subject_width()
+      local s, mw
+      mw := 0
+      every s := !self.contents do
+         mw <:= TextWidth(self.cwin, detab(s))
+      return mw + 2 * HIGHLIGHT_TEXT_SPACING
+   end
+
+   method get_view_x_padding()
+      return DEFAULT_TEXT_X_SURROUND - HIGHLIGHT_TEXT_SPACING
+   end
+
+   method get_view_y_padding()
+      return DEFAULT_TEXT_Y_SURROUND
+   end
+
+   method draw_line(xp, yp, i, selection_cw, cursor_cw, highlight_cw)
+      local s
+      s := contents[i]
+
+      #
+      # Cosmetic - add a little to the left of xp; this looks better 
+      # with the cursor, selection and highlight.
+      #
+      left_string(self.cbwin, xp + HIGHLIGHT_TEXT_SPACING, yp, detab(s))
+
+      if \selection_cw then
+         FillRectangle(selection_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+
+      if \cursor_cw then {
+         Rectangle(cursor_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+      }
+
+      if \highlight_cw then {
+         Rectangle(highlight_cw, self.view.x, yp - self.line_height / 2, self.view.w, self.line_height)
+      }
+   end
+
+   initially(a[])
+      self.SelectableScrollArea.initially()
+      set_fields(a)
+end

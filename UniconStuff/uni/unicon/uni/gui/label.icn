@@ -1,0 +1,136 @@
+#
+# $Id: label.icn,v 1.4 2004-11-06 00:28:13 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+#
+# This class implements a Text label.  The default width and 
+# height are determined by dimensions of text
+#
+class Label : Component(
+   label,                   #             
+   internal_alignment,      #                          
+   tx,                      #          
+   tw,                      #
+   linked_accel
+   )
+
+   #
+   # The internal alignment of the label, which should be one of
+   # ``l'', ``c'' or ``r'', for left, centre, or right
+   # alignment respectively.   The default is ``l''.
+   # @param x   The alignment.
+   #
+   method set_internal_alignment(x)
+      return self.internal_alignment := x
+   end
+
+   #
+   # Set the label.
+   # @param x   The label.
+   #
+   method set_label(x)
+      self.label := x
+      self.invalidate()
+      return x
+   end
+
+   #
+   # Link this label to a component; the label will be displayed
+   # with the component's accelerator key underlined.
+   #
+   method set_linked_accel(c)
+      self.linked_accel :=c
+   end
+
+   method resize()
+      if /self.label then
+         fatal("no label specified")
+
+      if \self.draw_border_flag then {
+         /self.w_spec := TextWidth(self.cwin, label) + 2 * DEFAULT_TEXT_X_SURROUND
+         /self.h_spec := WAttrib(self.cwin, "fheight") + 2 * DEFAULT_TEXT_Y_SURROUND
+      } else if \self.accepts_focus_flag then {
+         /self.w_spec := TextWidth(self.cwin, label) + 2 * HIGHLIGHT_TEXT_SPACING
+         /self.h_spec := WAttrib(self.cwin, "fheight")
+      } else {
+         /self.w_spec := TextWidth(self.cwin, label)
+         /self.h_spec := WAttrib(self.cwin, "fheight")
+      }
+      self.Component.resize()
+
+      if \self.draw_border_flag then {
+         self.tx := self.x + DEFAULT_TEXT_X_SURROUND
+         self.tw := self.w - 2 *  DEFAULT_TEXT_X_SURROUND
+      } else if \self.accepts_focus_flag then {
+         self.tx := self.x + HIGHLIGHT_TEXT_SPACING
+         self.tw := self.w - 2 * HIGHLIGHT_TEXT_SPACING
+      } else {
+         self.tx := self.x
+         self.tw := self.w
+      }
+   end
+
+   method display(buffer_flag)
+      local yoff, key, dwin
+
+      dwin := if /self.transparent then cbwin else cwin 
+
+      if /self.transparent then
+         EraseRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+
+      yoff := self.y + self.h / 2
+      key := (\linked_accel).accel
+
+      if \self.draw_border_flag then
+         DrawSunkenRectangle(dwin, self.x, self.y, self.w, self.h)
+
+      Clip(dwin, self.tx, self.y, self.tw, self.h)
+
+      case self.internal_alignment of {
+         "c" : center_string(dwin, self.tx + self.tw / 2, yoff, self.label, key)
+         "l" : left_string(dwin, self.tx, yoff, self.label, key)
+         "r" : right_string(dwin, self.tx + self.tw, yoff, self.label, key)
+         default : fatal("incorrect internal_alignment specifier: " || image(self.internal_alignment))
+      }         
+
+      Clip(dwin)
+
+      if \self.has_focus then {
+         DashedRectangle(dwin, self.tx - HIGHLIGHT_TEXT_SPACING, self.y, 
+                         self.tw + 2 * HIGHLIGHT_TEXT_SPACING, self.h)
+      }
+
+
+      self.do_shading(dwin)
+
+      if /buffer_flag & /self.transparent then
+            CopyArea(self.cbwin, self.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+
+   end
+
+   method handle_event(e)
+      fail
+   end
+
+   method set_one(attr, val)
+      case attr of {
+         "internal_alignment" : set_internal_alignment(string_val(attr, val))
+         "label" : set_label(string_val(attr, val))
+         default: self.Component.set_one(attr, val)
+      }
+   end
+
+   initially(a[])
+      self.Component.initially()
+      self.internal_alignment := "l"
+      set_fields(a)
+end

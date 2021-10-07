@@ -1,0 +1,613 @@
+#  
+#  srcfile.icn
+#  Handles the collected Source Files from the Icode
+#  Author : Ziad Al-Sharif
+#  Date   : Feb 24, 2008
+#  e-mail : zsharif@gmail.com
+# 
+
+$include "defaults.icn"
+link bincvt
+link strings
+
+#
+# It is used to index the loaded source files in the srcText list
+# 
+record fileIndex(
+   fbegin, # where the source file index starts in srcText
+   fend    # where the source file index ends in srcText
+   )
+
+#
+# Contains all of the source files issues such as found files and so  
+#
+class SourceFile(
+   procMainFile, # The Source File that has the procedure main
+   procMainLine, # The Source Line that has the procedure main
+   exeName,      # The executable file name
+   exeSize,      # The executable file size
+
+   userFiles,    # a set of the loaded user files
+   libFiles,     # a set of the loaded library files
+   fileNames,    # List with all source file names that are in the binary
+   foundFiles,   # Set with all file names that were found - loaded
+   missingFiles, # Set with all file names that were not found - not loaded 
+
+   binPath,      # the path of the VM: iconx or wiconx.exe
+   srcPath,      # String of paths that will be searched for source files
+   libPath,      # String of paths that will be searched for library files
+
+   srcText,      # List holds all source files text
+   srcIndex      # Table of our position in the source file; fname is the key
+   )
+
+#
+# Extracts the file name from its path, it is different from
+# getSourceFile() name by not keeping the path in srcPath
+#
+method getFileName(f)
+   local i:=0
+
+   every i:= find("/",f)
+   if (i+1) > *f then   fail
+   else   return f[i+1:0]
+end
+
+#
+# Obtains the file size from its name and path
+#
+method getSourceFileSize(f)
+  local fstat, fsize := -1
+
+  fstat := stat(f) | fail
+  fsize := fstat.size
+
+  return fsize 
+end
+
+#
+# Load the program Source File(s)
+#
+method loadSourceFiles(fname, src)
+   local i, j, s, f, b, e
+
+   exeName := getFileName(fname)
+   exeSize := getSourceFileSize(fname)
+   fileNames := src
+
+   #start the loading process with the file that has the procedure main() in it
+   if /exeName then
+      exeName := keyword("progname", Monitored)
+
+   procMainFile := getFileName(exeName)
+   if i := find(".exe"|".cmd", procMainFile) then
+      procMainFile := procMainFile[1:i]
+   procMainFile ||:= ".icn"
+
+   push(fileNames, procMainFile)
+   if s := dopen(procMainFile) then {
+      b := *srcText
+      while(put(srcText, read(s)))
+      close(s)
+      e := *srcText
+      insert(foundFiles, procMainFile)
+      srcIndex[procMainFile] := fileIndex(b,e)
+      }
+   procMainLine := searchFileProcs(procMainFile,"main") | 1
+
+   # loads the source files that we can find and keep a 
+   # list of the ones that we could not find. Note a source file
+   # can be opened more that once so we need to be careful !!!
+   every i := 1 to *fileNames do{
+      f := getFileName(fileNames[i])
+      if not member(foundFiles, f) then{
+         if s := dopen(fileNames[i]) then {
+            b := *srcText
+            while(put(srcText, read(s)))
+            close(s)
+            e := *srcText
+            insert(foundFiles, f)
+            srcIndex[f] := fileIndex(b,e)
+            }
+         else
+            put(missingFiles, fileNames[i]) # keep it as it is
+         }
+      #else
+         #write("File is already found:",f)
+      }
+   return
+end
+
+#
+# Searchs the fname for a specific linenum, and make sure it is applicable
+# for a breakpoint condition, if it is , it returns that line source code.
+#
+method searchFileLines(fname, linenum)
+   local temp, temp1
+
+   if member(foundFiles, fname) then{
+      temp := srcText[linenum + srcIndex[fname].fbegin]
+      temp ? {
+         tab(many(WhiteSpace))
+         if (temp1 := move(1)) then {
+            if temp1 == "#" then  fail
+            return temp1 ||:= tab(many(ValidSymbol)) #CHARACTER ++ punctuation
+            }
+         else  fail
+         }
+       }
+   else  fail
+end
+
+#
+# Used by cmdBreak
+# Searchs the Fname for a specific ProcName and returns its linenum
+#
+method searchFileProcs(Fname, ProcName)
+   local temp, temp1, offset, base
+
+   if \Fname & \ProcName & member(foundFiles, Fname) then{
+      base := srcIndex[Fname].fbegin
+      offset := 1
+      while temp := srcText[base + offset] do{
+         temp ? {
+            tab(many(WhiteSpace))
+            if(temp1 := tab(many(&letters))) == ("procedure"|"method") then{
+              tab(many(WhiteSpace))
+              temp1 := tab(many(CHARACTER))#CHARACTER ++ other_char
+              if temp1 == ProcName then{
+                 return offset
+                 }  
+              }
+            }
+         offset +:= 1
+         }
+      }
+   else{
+      fail
+      }
+end
+
+#
+# Used by cmdBreak
+# Searchs the Fname for a specific ProcName and returns its linenum
+#
+method searchFileClasses(Fname, cname)
+   local temp, temp1, offset, base
+
+   if \Fname & \cname & member(foundFiles, Fname) then{
+      base := srcIndex[Fname].fbegin
+      offset := 1
+      while temp := srcText[base + offset] do{
+         temp ? {
+            tab(many(WhiteSpace))
+            if(temp1 := tab(many(&letters))) == "class" then{
+              tab(many(WhiteSpace))
+              temp1 := tab(many(CHARACTER))#CHARACTER ++ other_char
+              if temp1 == cname then{
+                 return offset
+                 }  
+              }
+            }
+         offset +:= 1
+         }
+      }
+   else{
+      fail
+      }
+end
+
+#
+# Used by cmdBreak
+# Searchs the Fname for a specific ProcName and returns its linenum
+#
+method searchClassMethods(mthd, cname, fname)
+   local temp, temp1, offset, base, cline
+
+
+   if cline := searchFileClasses(fname, cname) then{
+      base := srcIndex[fname].fbegin + cline
+      offset := 1
+      while temp := srcText[base + offset] do{
+         temp ? {
+            tab(many(WhiteSpace))
+            if(temp1 := tab(many(&letters))) == "method" then{
+              tab(many(WhiteSpace))
+              temp1 := tab(many(CHARACTER))#CHARACTER ++ other_char
+              if temp1 == mthd then{
+                 return (offset+cline)
+                 }  
+              }
+            }
+         offset +:= 1
+         }
+      }
+   else{
+      fail
+      }
+end
+
+#
+# returns the executable name
+#
+method getExeName()
+   if exeName =="?" then
+      fail
+   return exeName 
+end
+
+#
+# returns the File Name that has the procedure main 
+#
+method getMainFileName()
+   if /procMainFile then
+      fail
+   return procMainFile
+end
+
+#
+# returns the total number of lines in a file.
+#
+method getFileTotalLines(fname)
+   /fname := procMainFile
+
+   if member(foundFiles, fname) then
+      return srcIndex[fname].fend - srcIndex[fname].fbegin #+ 1
+   else
+      fail
+end
+
+#
+# checks whether fname is a source file or not
+#
+method isSrcFile(fname)
+  if \fname then{
+     if not find(".icn", fname) then fname ||:= ".icn" 
+     if member(foundFiles, fname) | member(missingFiles, fname) then
+        return
+     }
+  fail
+end
+
+#
+# checks to see whether a line number is in the file limits or not
+#
+method isInFile(fname, line)
+   local b, e
+   
+   if line > 0 & member(foundFiles, fname) then{
+      b := srcIndex[fname].fbegin
+      e := srcIndex[fname].fend
+      if (b + line <= e) & ( e - line >= b ) then
+         return
+      }
+   fail
+end
+
+#
+# returns an image of the current source line
+#
+method getSrcLine(fname, line)
+
+    /fname := keyword("file", Monitored)
+    /line  := keyword("line", Monitored)
+    fname := getFileName(fname)
+
+    if member(foundFiles, fname) then #& isInFile(f, line) then       
+       return srcText[line + srcIndex[fname].fbegin]
+    else
+       fail
+end
+
+#
+# returns the file name of a procedure 
+#
+method getProcFile(pname)
+    local fname
+
+    every fname := !foundFiles do
+       if searchFileProcs(fname, pname) then
+          return fname
+    fail
+end
+
+#
+# returns the line number of a procedure name
+#
+method getProcLine(pname, pfile)
+    local pline
+
+    /pfile := getProcFile(pname)
+    if \pfile then
+       if pline := searchFileProcs(pfile, pname) then
+          return pline
+    fail
+end
+
+#
+# returns the procedure name based on a line number and a file name
+#
+method getProcName(fname, line)
+   local fstart, srcLine, temp, temp1
+
+   if \fname & \line & member(foundFiles, fname) then{
+      fstart  := srcIndex[fname].fbegin
+      srcLine := fstart + line
+      #write("----fstart=",fstart,"   srcLine=",srcLine) 
+      # search backward from the line up until the procedure header
+      while srcLine >= fstart & temp := srcText[srcLine] do{
+         #write("----temp=",temp)
+         temp ? {
+            tab(many(WhiteSpace))
+            if(temp1 := tab(many(&letters))) == ("procedure"|"method") then{
+              tab(many(WhiteSpace))
+              temp1 := tab(many(CHARACTER))#CHARACTER ++ other_char
+              return temp1
+              }
+            }
+         srcLine -:= 1 
+         }
+      }
+   else fail
+end
+
+#
+# returns the file name of a procedure 
+#
+method getClassFile(cname)
+    local fname
+
+    every fname := !foundFiles do
+       if searchFileClasses(fname, cname) then
+          return fname
+    fail
+end
+
+#
+# returns the file name of a procedure 
+#
+method getMethodLine(m_name, c_name, f_name)
+    local fname, line
+
+    if /f_name then{
+       if fname := getClassFile(c_name) then
+          f_name := fname
+       else fail
+       }
+    
+    if line := searchClassMethods(m_name, c_name, f_name) then
+       return line
+    else
+       fail
+end
+
+#
+# prints out the source code
+#
+method getSrcCode(fname)
+   local i, b, e, code:="\n"
+
+   if /fname then fname := keyword("file", Monitored)
+
+   b := srcIndex[fname].fbegin
+   e := srcIndex[fname].fend
+   every i:= b  to e do
+      code ||:= srcText[i]||"\n"
+
+   return code
+end
+
+#
+# returns a sorted list of all opend src file names 
+#
+method getFoundFiles()
+   local L
+
+   if *foundFiles > 0 then{
+      L := sortf(foundFiles)
+      return L
+      }
+   else
+      fail  
+end
+
+#
+# check to see if file is loaded or not
+# loaded files are those that opend and placed in srcText
+#
+method isLoaded(fname)
+   if member(foundFiles, fname) then
+      return
+   fail
+end
+
+#
+# returns a sorted list of all missing src file names
+#
+method getMissingFiles()
+   local L
+
+   if *missingFiles > 0 then{ 
+      L := sortf(missingFiles)
+      return L
+      }
+   else
+      fail
+end
+
+#
+# check to see if file is Missing or not
+# missing files are those that are not opend and not placed in srcText
+#
+method isMissing(fname)
+   if member(missingFiles, fname) then
+      return
+   fail
+end
+
+#
+# returns a sorted list of all source file names
+#
+method getSourceFiles()
+   local L
+   
+   if *fileNames > 0 then{
+      L := sortf(fileNames)
+      return L
+      }
+   else
+      fail
+end
+
+#
+# returns a sorted list of all user-defined source file names
+#
+method getUserFiles()
+   local L
+   
+   if *userFiles > 0 then{
+      L := sortf(userFiles)
+      return L
+      }
+   else
+      fail
+end
+
+#
+# returns a sorted list of all used library file names
+#
+method getLibFiles()
+   local L
+   
+   if *libFiles > 0 then{
+      L := sortf(libFiles)
+      return L
+      }
+   else
+      fail
+end
+
+#
+# returns the VM binary path (iconx, icont, wiconx, wicont)
+#
+method getBinPath()
+   local f
+
+   if (binPath := (&features ? (="Binaries at " & tab(0)))) |
+      ((f := open((binPath:=getpaths()) ||
+                  ("iconx"|"iconx.exe"|"wiconx.exe")))) then
+      close(\f)
+   return binPath
+end
+
+#
+# returns the Unicon's library paths 
+#
+method getLibPath()
+   local f
+
+   /binPath := getBinPath()
+$ifdef _UNIX   
+   libPath := binPath || "../ipl/gdata"  || " " ||
+              binPath || "../ipl/gincl"  || " " ||
+              binPath || "../ipl/gprocs" || " " ||
+              binPath || "../ipl/gprogs" || " " ||
+              binPath || "../ipl/incl"   || " " ||
+              binPath || "../ipl/lib"    || " " ||
+              binPath || "../ipl/mincl"  || " " ||
+              binPath || "../ipl/mprocs" || " " ||
+              binPath || "../ipl/mprogs" || " " ||
+              binPath || "../ipl/procs"  || " " ||
+              binPath || "../ipl/progs"  || " " ||
+              binPath || "../uni/lib"    || " " ||
+              binPath || "../uni/gui" 
+$else
+   libPath := binPath || "..\ipl\gdata"  || " " ||
+              binPath || "..\ipl\gincl"  || " " ||
+              binPath || "..\ipl\gprocs" || " " ||
+              binPath || "..\ipl\gprogs" || " " ||
+              binPath || "..\ipl\incl"   || " " ||
+              binPath || "..\ipl\lib"    || " " ||
+              binPath || "..\ipl\mincl"  || " " ||
+              binPath || "..\ipl\mprocs" || " " ||
+              binPath || "..\ipl\mprogs" || " " ||
+              binPath || "..\ipl\procs"  || " " ||
+              binPath || "..\ipl\progs"  || " " ||
+              binPath || "..\uni\lib"    || " " ||
+              binPath || "..\uni\gui" 
+$endif
+end
+
+#
+# Searchs through the specified source path for the requested file.
+# It looks first in current directory, 
+# then it looks in the surrent direcory neigborhood, if it failed,
+# it looks in the library paths 
+#
+method dopen(s)
+   local File, spaths, lpaths, path, binpath, f
+
+   if File := open(s) then {
+      s := getFileName(s)      
+      insert(userFiles, s)
+      return File
+      }
+   else{
+      spaths := srcPath
+      s := PS || s      # platform-specific
+      spaths ? {
+         while path := tab(find(" ") | 0) do {
+            if File := open(path || s) then {
+               s := getFileName(s)      
+               insert(userFiles, s)
+               return File
+               }
+            tab(many(' ')) | break
+            }
+         }
+      }
+
+   # look in the library paths
+   /libPath := getLibPath()
+
+   lpaths := libPath
+   s := PS || s      # platform-specific
+   lpaths ? {
+      while path := tab(find(" ") | 0) do {
+         if File := open(path || s) then {
+            s := getFileName(s)      
+            insert(libFiles, s)
+            return File
+            }
+         tab(many(' ')) | break
+         }
+      }
+   fail
+end
+
+#
+# Initialization
+#
+initially()
+
+   exeName     := "?"
+   exeSize     := -1
+
+   fileNames   := []
+   userFiles   := set()
+   libFiles    := set()
+
+   srcText     := []
+   srcIndex    := table(0)
+   foundFiles  := set()
+   missingFiles:= []
+
+$ifdef _UNIX
+   srcPath   := ". .. ../.."
+$else
+   srcPath   := ". .. ..\.."
+$endif
+   #srcPath||:= " " || getenv( "DPATH" )
+   srcPath ||:= " " || getenv( "LPATH" )
+   srcPath ||:= " " || getenv( "IPATH" )
+end

@@ -1,0 +1,91 @@
+#
+# $Id: ticker.icn,v 1.6 2006-07-08 14:51:44 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+import lang
+import util
+
+$include "guih.icn"
+
+#
+# This class is used to generate "tick" events
+# at regular intervals.  These events will be fired
+# between the handling of input and repaint events,
+# so at least one dialog has to be open for the
+# Ticker class to work.
+#
+# The following will cause the method on_tick of object
+# obj to be invoked roughly every 2 seconds.
+#
+# @example
+# @ t := Ticker()
+# @ t.connect(obj, "on_tick", TICK_EVENT)
+# @ t.start(2000)
+#
+# Other effects of the start method :-
+#
+# @example
+# @ # Run every 0.5s, but wait for 7s before the first call
+# @ # t.start(500, 7000)
+# @ #
+# @ # Run every 0.5s, no initial delay, but invoke 10 times only.
+# @ # t.start(500,, 10)
+# @ #
+# @ # Run just once with no initial delay.
+# @ # t.start(,, 1)
+#
+class Ticker : Object : Connectable(
+   ticker_rate,             # Ticker rate
+   next_tick_time,          # Time of next tick
+   ticker_count             # Num of times to invoke
+   )
+
+   #
+   # This method is called repeatedly by the dispatcher.  It
+   # fires off events to its listeners.
+   #
+   method tick()
+      fire(TICK_EVENT)
+   end
+
+   #
+   # Start the ticker process, with the {tick()}
+   # method being invoked approximately every {n} milliseconds.
+   #
+   # @param n   the ticker interval in milliseconds (default 0, ie 
+   #            repeat as regularly as possible).
+   # @param d   the initial delay, if any (default 0)
+   # @param c   the number of times to invoke (default infinite).
+   #
+   method start(n, d, c)
+      dispatcher.start_ticker(self, n, d, c)
+   end
+
+   #
+   # Stop the ticker.
+   #
+   method stop()
+      dispatcher.stop_ticker(self)
+   end
+
+   #
+   # Change the interval of the ticker
+   # @param n   the new interval.
+   #
+   method retime(n)
+      dispatcher.retime_ticker(self, n)
+   end
+
+   #
+   # Succeeds if and only if the ticker is active.
+   #
+   method is_ticking()
+      return \ticker_rate
+   end
+end

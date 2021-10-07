@@ -1,0 +1,29 @@
+#
+# $Id: basicclasscoding.icn,v 1.3 2009-10-28 21:07:18 to_jafar Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package lang
+
+#
+# Very simple class coding which just encodes/decodes its member variables
+# in order.
+#
+class BasicClassCoding : ClassCoding()
+   method encode_obj(e)
+      e.line_out(*self)
+      every e.encode(self[1 to *self])
+   end
+
+   method decode_obj(d)
+      local i, n
+      n := integer(d.line_in()) | fail
+      every i := 1 to n do 
+	 self[i] := d.decode() | fail
+      return
+   end
+end
+

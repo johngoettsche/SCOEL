@@ -1,0 +1,24 @@
+#
+# uwc.icn - Unicon word counter
+#
+# feel free to add bells and whistles
+# Desired: add counts for # of classes, # of methods, # of procedures...
+#
+
+link strings
+procedure main(av)
+   while fn := pop(av) do {
+      if not (f := open(fn)) then {
+	 write(&errout, "cannot open ", fn)
+	 }
+      chars := lines := words := 0
+      while line := read(f) do {
+	 lines +:= 1
+	 chars +:= *line
+	 words +:= *wordlist(line)
+	 }
+      close(f)
+      chars +:= lines # newlines
+      write(" ", lines, " ", words, " ", chars, " ", fn)
+      }
+end

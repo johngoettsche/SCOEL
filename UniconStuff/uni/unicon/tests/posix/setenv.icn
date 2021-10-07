@@ -1,0 +1,15 @@
+procedure main()
+
+   setenv("foo", "bar")
+   write("foo=", image(getenv("foo")))
+   setenv("bar", "foo")
+   setenv("foo", "rab")
+
+   write("foo=", image(getenv("foo")))
+   write("bar=", image(getenv("bar")))
+
+   if &features=="MS Windows NT" then
+      system("echo foo=%foo% bar=%bar%")
+   else
+      system("echo foo=$foo bar=$bar")
+end

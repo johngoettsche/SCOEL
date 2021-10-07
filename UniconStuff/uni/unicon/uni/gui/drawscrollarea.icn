@@ -1,0 +1,59 @@
+#
+# $Id: drawscrollarea.icn,v 1.3 2004-11-06 21:06:14 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+package gui
+link graphics
+
+$include "guih.icn"
+
+class DrawScrollAreaView : Component()
+
+   method display(buffer_flag)
+      local dwin
+      if /self.transparent then{
+         dwin := self.cbwin
+         EraseRectangle(dwin, x, y, w, h)
+	}
+      else{ 
+         dwin := self.cwin
+         }
+
+      if /parent.transparent then{
+         Clip(parent.cbwin, x, y, w, h)
+         parent.draw(parent.get_areax(), parent.get_areay(), x, y, w, h)
+         Clip(parent.cbwin)
+       }
+      else{
+         Clip(parent.cwin, x, y, w, h)
+         parent.draw(parent.get_areax(), parent.get_areay(), x, y, w, h)
+         Clip(parent.cwin)
+	}
+
+      self.do_shading(dwin)
+      if /buffer_flag & /self.transparent then
+         CopyArea(cbwin, cwin, x, y, w, h, x, y)
+   end
+end
+
+#
+# This is a scroll area where the object is displayed by overriding
+# an abstract method defined below.
+#
+class DrawScrollArea : ScrollArea()
+   #
+   # Draw the object at its offset subject_x, subject_y, into self.cbwin
+   # at vx, vy, with size vw, vh; the latter parameters are the size
+   # and position of the view.
+   #
+   abstract method draw(subject_x, subject_y, vx, vy, vw, vh)
+
+   method create_view()
+      return DrawScrollAreaView()
+   end
+end
+

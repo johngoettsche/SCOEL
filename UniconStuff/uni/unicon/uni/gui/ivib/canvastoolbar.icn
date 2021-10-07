@@ -1,0 +1,65 @@
+#
+# $Id: canvastoolbar.icn,v 1.4 2006-07-09 23:43:13 rparlett Exp $
+#
+# This file is in the public domain.
+#
+# Author: Robert Parlett (parlett@dial.pipex.com)
+#
+
+import gui
+
+
+############################################################################
+#
+# Class for representing a ToolBar on the canvas.
+#
+class CanvasToolBar : CanvasPanel : ToolBar()
+   #
+   # Copy object.
+   #
+   method cp()
+      local c
+      c := CanvasToolBar()
+      self.CanvasComponent.cp(c)
+      every put(c.children, (!self.children).cp())
+      return c
+   end
+
+   #
+   # Duplicate object.
+   #
+   method dup(pc)
+      local c
+      c := CanvasToolBar()
+      self.CanvasComponent.dup(c, pc)
+      every c.add((!self.children).dup(pc))
+      return c
+   end
+
+   #
+   # Open the configuration dialog box.
+   #
+   method dialog()
+      return CanvasToolBarDialog(self)
+   end
+
+   method display(buffer_flag)
+      EraseRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      if \self.draw_border_flag then
+         DrawRaisedRectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      else
+         Rectangle(self.cbwin, self.x, self.y, self.w, self.h)
+      center_string(self.cbwin, self.x + self.w / 2, self.y + 10, "<ToolBar>")
+      every (!self.children).display(1)
+      if /buffer_flag then
+         CopyArea(self.cbwin, self.cwin, self.x, self.y, self.w, self.h, self.x, self.y)
+   end
+
+   initially
+      self.CanvasComponent.initially()
+      self.ToolBar.initially()
+      #class_variable := 1
+      self.class_name := "ToolBar"
+      self.import_name := "gui"
+      self.name := "toolbar"
+end
