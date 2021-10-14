@@ -160,6 +160,9 @@ $define FUNC 355
 $define CONASSIGN 356
 $define STORE 357
 
+$define AT 358
+$define CREATE 359
+
 global yylineno, yycolno, yyfilename
 
 #
@@ -221,21 +224,10 @@ initial {
    t["topic"] := [0, TOPIC]
    t["f"] := [0, FUNC]
    t["store"] := [0, STORE]
+   t['create'] := [Beginner, CREATE]
 }
    return t
 end
-
-#import errors
-#procedure lex_error()
-#   yyerror("token not recognized")
-#end
-
-#procedure uni_error(s)
-#   /errors := 0
-#   /s := "token not recognized"
-#   yyerror(s)
-#   errors +:= 1
-#end
 
 procedure yylex2()
 	local 
@@ -450,6 +442,7 @@ procedure do_at()
        tokflags +:= Beginner + Ender
        return RCV
        }
+    return AT
 end
 
 procedure do_qmark()

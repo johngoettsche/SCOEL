@@ -13,7 +13,8 @@ procedure main(args)
 		file,
 		filename,
 		outputfile,
-		loc
+		loc,
+		out
 		
 	uniconTrans := 0
 	files := []

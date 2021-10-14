@@ -116,7 +116,10 @@
 
 %token FUNK			/* 	f 	*/
 %token CONASSIGN	/* :>	*/
-%token STORE	/* store	*/
+%token STORE		/* store	*/
+
+%token AT 			/*	@	*/
+%token CREATE		/*	create	*/
 
 %{
 
@@ -494,9 +497,13 @@ invocDef : IDENT INVASSIGN query {
 		children := [$1,":-",$3]
 		$$ := ruleDef_node(children)
 	}
-	| IDENT FUNK LPAREN fldlist RPAREN INVASSIGN semiOptional expr {
-		children := [$1, "f", "(", $4, ")", ":-", ";", $8]
+	| IDENT function {
+		children := [$1, $2]
 		$$ := functionDef_node(children)
+	}
+	| IDENT INVASSIGN LBRACE exprlist RBRACE {
+		children := [$1, ":-", "{", $4, "}"]
+		$$ := patternDef_node(children)
 	}
 	;
 
@@ -516,6 +523,11 @@ query : LPAREN arglist RPAREN semiOptional LBRACE exprlist RBRACE {
 	}
 	;
 	
+function : FUNK LPAREN fldlist RPAREN INVASSIGN expr {
+		children := ["f", "(", $3, ")", ":-", $6]
+		$$ := function_node(children)
+	}
+
 fldlist : { 
 		$$ := EmptyNode 
 	}
@@ -830,6 +842,10 @@ expr9	: expr10
 	;
 
 expr10	: expr11
+	| AT expr10 { 
+		children := [$1,$2]
+		$$ := uat_node(children)
+	}
 	| BAR expr10 { 
 		children := [$1,$2]
 		$$ := ubar_node(children)
