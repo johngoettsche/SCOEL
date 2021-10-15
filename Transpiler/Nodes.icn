@@ -53,72 +53,26 @@ class node()
 		}
 	end
 	
-	method iconCode()
-		local
-			child
-		
-		icode := ""
-		every child := \!children do {
-	#		write(type(child))
-			if \(type(child) ?? "node") then {
-				icode ||:= child.iconCode()
-			} else if \(type(child) ?? "token") then {
-				icode ||:= child.string
-			} else {
-				icode ||:= child
-			}	
-			icode ||:= " "
-		}
-		return icode
-	end
-	
-	method generate_first()
-		local
-			child
-		
-		every child := !children do {
-			if type(child) ?? "node" then {
-				if /first then first := child.generate_first()
-				return first
-			} else {
-				return self
-			}
-		}
-	end
-	
-	method uniconCode()
-		local
-			child
-		
-	#	write(label)
-		ucode := ""
-		every child := \!children do {
-			write(type(child))
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			ucode ||:= " "
-		}
-		return ucode
-	end
-	
 	method setCurrentTable()
 		local
 			thisTable,
 			tempTable
 		
+		if \locate then {
+			current_package := locate.packagename
+			current_object := locate.objectname
+			current_method := locate.methodname
+			current_invoc := locate.invocname
+			current_codeblocktype := locate.codeblocktype
+		}
 	#	write("------------------------------------------------------------------------------------")
 		
-		if \current_package then {
+		if \current_package then { #
 			thisTable := current_symbol_table.root()
 		} else {
 			thisTable := current_symbol_table
 		}
-	#	write("current_package: ",current_package)
+		write("current_package: ",current_package)
 		if \current_package then {
 			thisTable := thisTable.getTable(current_package)
 			if /thisTable then {
@@ -217,6 +171,9 @@ class program_node : node ()
 	end
 initially(ch)
 	self$node.initially("program", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class decls_node : node () 
@@ -247,11 +204,17 @@ class decls_node : node ()
 	end
 initially(ch)
 	self$node.initially("decls", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class decl_node : node ()
 initially(ch)
 	self$node.initially("decl", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end 
 
 class constructor_node : node ()
@@ -263,9 +226,11 @@ class constructor_node : node ()
 			field,
 			child
 		
-		
 		current_symbol_table := setCurrentTable()
-#		write("constructor: ",current_package,"-", current_object,"-", current_method,"-", current_invoc,"-", current_codeblocktype)
+		current_object := getNodeLabel(parent.children[1].children[3])
+		locate := location(current_package, current_object, &null, current_invoc, current_codeblocktype)
+		write("constructor: ",current_package,"-", current_object,"-", current_method,"-", current_invoc,"-", current_codeblocktype)
+		
 		current_codeblocktype := current_method := current_object || "_constructor"
 		current_symbol_table.createSymbolTable(current_method, "constructor")
 		locate := location(current_package, current_object, &null, current_invoc, current_codeblocktype)
@@ -293,6 +258,7 @@ class constructor_node : node ()
 			child,
 			params
 		
+		setCurrentTable()
 		current_codeblocktype := current_method := current_object || "_constructor"
 		every child := !children do {
 			if type(child) ?? "node" then child.typeCheck()
@@ -300,36 +266,12 @@ class constructor_node : node ()
 	#	params := children[3].arglist
 		nodeType := ConstructorType(params)
 	end
-	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				if child.string == "constructor" then {
-					ucode ||:= "initially"
-				} else {
-					ucode ||:= child.string
-				}
-			} else {
-				ucode ||:= child
-			}	
-			if n = number then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		ucode ||:= "\n"
-		return ucode
-	end	
 initially(n, ch)
 	number := n
 	self$node.initially("constructor", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class class_node : node ()
@@ -364,104 +306,11 @@ class class_node : node ()
 	#	params := children[1].arglist ||| children[2].localsList
 		nodeType := ClassType(params)
 	end
-
-	method uniconCode()
-		ucode := self$node.uniconCode() || "\n"
-		return ucode
-	end
-	
-	method iconCode()
-		local
-			vars,
-			meths,
-			item,
-			count,
-			meth,
-			met,
-			className
-		
-		current_symbol_table := setCurrentTable()
-		if \locate.packagename then write("class:iconCode: ",locate.packagename);
-		if \locate.objectname then write("class:iconCode: ",locate.objectname);
-		if \locate.methodname then write("class:iconCode: ",locate.methodname);
-		write("class:iconCode:symbolTable: ",current_symbol_table.ident)
-		if \locate.objectname then className := locate.objectname
-		else {
-			className := getNodeLabel(children[1].children[3])
-			locate.objectname := className
-		}
-	#	current_symbol_table := setCurrentTable()
-	#write("-------------------------------");
-	#write(current_symbol_table.to_string());
-	#write("-------------------------------");
-		vars := []
-		meths := []
-		every item := key(current_symbol_table.symTable) do {
-			write("class:iconCode: ", image(item));
-			if type(item) ?? "Table" then {
-				put(meths, item.ident[0:-6]);
-			} else {
-				put(vars, item);
-			}
-		}
-		icode := "# " || className || "class generation #\n"
-		icode ||:= "record " || className || "__class(__self"
-		every item := !meths do {
-			icode ||:= ", " || item
-		}
-		every item := !vars do {
-			icode ||:= ", " || item
-		}
-		icode ||:= ")\n\n"
-		
-		icode ||:= "record " || className || "__methods("
-		count := 0
-		every meth := !meths do {
-			if type(current_symbol_table[meth]) == "table" then{
-				if count > 0 then icode ||:= ", "
-				icode ||:= meth
-			} 
-		}
-		icode ||:= ")\n\n"
-		icode ||:= "global " || className || "__constructor\n\n"
-		
-		icode ||:= "procedure __" || className || "("
-		every item := !vars do {
-			icode ||:= ", " || item
-		}
-		icode ||:= ")\n"
-		icode ||:= "local self, clone\n"
-		icode ||:= "initial {\n"
-		icode ||:= "if /" || className || "__constructor then " || className || "initialize()\n"
-		icode ||:= "}\n"
-		icode ||:= "self := " || className || "__class(&null, " || className || "__constructor,"
-		every item := !vars do {
-			icode ||:= ", " || item
-		}
-		icode ||:= ")\n"
-		icode ||:= "self.__self := self\n"
-		icode ||:= "return self\n"
-		icode ||:= "end\n\n"
-				
-		every meth := !meths do {
-			if meth ?? "constructor" then {
-				icode ||:= "procedure " || className || "initialize()\n"
-				icode ||:= "initial " || className || "__constructor := " || className || "__methods("
-				count := 0
-				every met := !meths do {
-					if not(met ?? "constructor") then {
-						if count > 0 then icode ||:= ", "
-						icode := met 
-					}
-				}
-			}
-		}
-		
-		#icode ||:= self$node.iconCode() || "\n"
-		return icode
-	end
 initially(ch)
 	self$node.initially("class", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class classhead_node : node ()
@@ -470,17 +319,20 @@ class classhead_node : node ()
 			field # current_package
 			
 		current_access := "global"
-		current_symbol_table := setCurrentTable()
+		write("classhead:current package: ",current_package)
+		setCurrentTable()
 		current_object := getNodeLabel(children[3])
+		write("classhead: ",current_object)
 		current_symbol_table.createSymbolTable(current_object, "object")
-#		write("classnode: ",current_symbol_table.to_string())
+		write("classhead: ",current_symbol_table.to_string())
 		locate := location(current_package, &null, current_method, current_codeblocktype)
+		
 		field := Field_Ref(locate, getNodeLabel(children[3]), "global", ClassType())
 		field.address := current_symbol_table.generate_object()
 		current_symbol_table.addField(field)
 		
 		current_symbol_table := setCurrentTable()
-#		write(type(self) , " classnode:Current Symbol Table: ", current_symbol_table.ident)
+		write(type(self) , " classhead:Current Symbol Table: ", current_symbol_table.ident)
 		current_access := "object"
 		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
 		if \children[4] then children[4].makeSymbolTable()
@@ -508,36 +360,11 @@ class classhead_node : node ()
 		}
 	end
 	
-	method uniconCode() #classhead
-		local
-			child
-		
-		ucode := ""
-		every \(child := !children) do {
-			if type(child) ?? "token" then{
-				if child.string == "store" then {
-					# set up storage list
-				} else if child.string == "abtract" | "class" then {
-					ucode ||:= child.string || " "
-				}
-			} else if type(child) == "string" then {
-				ucode ||:= child || " "
-			} else {
-				ucode ||:= child.uniconCode() || " "
-			}
-		}
-		if *children = 4 then ucode ||:= "()"
-		if \children[1] then {
-			if getNodeLabel(children[1]) == "store" & getNodeLabel(children[3]) == "Main" then {
-				yyerror2(600, "Main Class Error", current_package, &null)
-			}
-		}
-		
-		ucode ||:= "\n"
-		return ucode
-	end
 initially(ch)
 	self$node.initially("classhead", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class supers_node : node ()
@@ -548,8 +375,8 @@ class supers_node : node ()
 			obj,
 			field,
 			tempTable,
-			tempField
-		
+			tempField,
+			referenceLocation
 		
 		every child := !children do {
 			if type(child) ?? "node" then {
@@ -578,6 +405,9 @@ class supers_node : node ()
 	end
 initially(ch)
 	self$node.initially("supers", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 #currentLocation, referenceLocation, referenceLabel, assignmentFlag, token
@@ -614,11 +444,17 @@ class packageref_node : node ()
 	end
 initially(ch)
 	self$node.initially("packageref" || *ch, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class semiOptional_node : node ()
 initially(ch)
 	self$node.initially("semiOptional", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class methods_node : node ()
@@ -638,6 +474,9 @@ class methods_node : node ()
 	end
 initially(ch)
 	self$node.initially("methods", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class import_node : node ()
@@ -681,6 +520,9 @@ class import_node : node ()
 	end	
 initially(ch)
 	self$node.initially("import", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class link_node : node ()
@@ -721,6 +563,9 @@ class link_node : node ()
 	end	
 initially(ch)
 	self$node.initially("link", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class linklist_node : node ()	
@@ -752,29 +597,11 @@ class linklist_node : node ()
 		}
 	end
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 1 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("linklist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class lnkfile_node : node ()
@@ -800,6 +627,9 @@ class lnkfile_node : node ()
 	end
 initially(ch)
 	self$node.initially("lnkfile", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class global_node : node ()	
@@ -817,29 +647,11 @@ class global_node : node ()
 		current_access := oldAccess
 	end
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 1 | 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("global", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class const_node : node ()	
@@ -865,33 +677,11 @@ class const_node : node ()
 		
 	end
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				if child.string == "const" then{
-					ucode ||:= "global"
-				} else {
-					ucode ||:= child.string
-				}
-			} else {
-				ucode ||:= child
-			}	
-			if n = 1 | 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("const", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class topic_node : node ()	
@@ -917,29 +707,11 @@ class topic_node : node ()
 		
 	end
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 1 | 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("topic", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class constlist_node : node ()                                
@@ -963,6 +735,9 @@ class constlist_node : node ()
 	end
 initially(ch)
 	self$node.initially("idlist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class constdef_node : node ()
@@ -1014,6 +789,9 @@ class constdef_node : node ()
 	end
 initially(ch)
 	self$node.initially("constdef", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class record_node : node () # RECORD IDENT LPAREN fldlist RPAREN
@@ -1059,35 +837,19 @@ class record_node : node () # RECORD IDENT LPAREN fldlist RPAREN
 			if type(child) ?? "node" then child.typeCheck()
 		}
 	end
-	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 5 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("record", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class store_node : node()
 initially(ch)
 	self$node.initially("store", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class invocDef_node : node ()
@@ -1148,17 +910,11 @@ class invocDef_node : node ()
 		current_invoc := oldInvoc
 		current_symbol_table := oldSymbolTable
 	end
-
-	method uniconCode()
-		local
-			n 
-			
-		ucode := "method " || children[1].string || "("
-		ucode ||:= children[3].uniconCode() || "\nend\n"
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("invocDef", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class fact_node : node ()
@@ -1173,7 +929,7 @@ class fact_node : node ()
 			oldCodeblocktype,
 			oldSymbolTable
 		
-	#	write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
+		write(type(self) || " Current Symbol Table: " || current_symbol_table.ident)
 		oldCodeblocktype := current_codeblocktype
 		oldSymbolTable := current_symbol_table
 	#	write(current_package," fa ", current_object," fa ", current_method," fa ", current_invoc," fa", current_codeblocktype)
@@ -1216,11 +972,17 @@ class fact_node : node ()
 	end
 initially(ch)
 	self$node.initially("fact", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class queryList_node : node ()
 initially(ch)
 	self$node.initially("queryList", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class query_node : node () #LPAREN fldlist RPAREN semiOptional LBRACE factList RBRACE
@@ -1260,12 +1022,9 @@ class query_node : node () #LPAREN fldlist RPAREN semiOptional LBRACE factList R
 
 initially(ch)
 	self$node.initially("query", ch)
-end
-
-class ruleDef_node : node()
-
-initially(ch)
-	self$node.initially("ruleDef", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class patternDef_node : node() # IDENT INVASSIGN LBRACE exprlist RBRACE
@@ -1300,9 +1059,12 @@ class patternDef_node : node() # IDENT INVASSIGN LBRACE exprlist RBRACE
 	end
 initially(ch)
 	self$node.initially("patternDef", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
-class functionDef_node : node() # IDENT FUNK LPAREN fldlist RPAREN INVASSIGN semiOptional LBRACE locals exprlist RBRACE
+class functionDef_node : node() #IDENT function
 	method makeSymbolTable()
 		local
 			child,
@@ -1311,18 +1073,16 @@ class functionDef_node : node() # IDENT FUNK LPAREN fldlist RPAREN INVASSIGN sem
 		
 		oldCodeblocktype := current_codeblocktype
 		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		write("functionDef:locate: ", image(locate))
 		current_codeblocktype := "function"
-		child := current_symbol_table.getField(getNodeLabel(children[1]))
+		
+		child := getNodeLabel(children[1])
 		field := current_symbol_table.inScope(child)
 		if \field then {
 			field.invoc := "function"
 		}
-		if \children[4] then {
-			children[4].makeSymbolTable()
-		}
-		if \children[8] then {
-			children[8].makeSymbolTable()
-		}
+		
+		children[2].makeSymbolTable()
 		current_codeblocktype := oldCodeblocktype
 	end
 	
@@ -1332,33 +1092,60 @@ class functionDef_node : node() # IDENT FUNK LPAREN fldlist RPAREN INVASSIGN sem
 			oldCodeblocktype,
 			field
 		
+		setCurrentTable()
 		oldCodeblocktype := current_codeblocktype
-		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
 		current_codeblocktype := "function"
-		child := current_symbol_table.getField(getNodeLabel(children[1]))
-		field := current_symbol_table.inScope(child)
+		write("functionDef:typeCheck:child1: ", getNodeLabel(children[1]))
+		field := current_symbol_table.inScope(getNodeLabel(children[1]))
 		if /field then {
-			yyerror2(613, "semantic error", children[1].token.string, children[1].token)
+			yyerror2(611, "semantic error", getNodeLabel(children[1]), children[1])
 		} 
-		if \children[4] then {
-			children[4].typeCheck()
-		}
-		if \children[8] then {
-			children[8].typeCheck()
+		if \children[3] then {
+			children[3].typeCheck()
 		}
 		current_codeblocktype := oldCodeblocktype
 	end
 initially(ch)
 	self$node.initially("functionDef", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
+end
+
+class function_node : node()
+	method makeSymbolTable()
+		local
+			child,
+			oldCodeblocktype,
+			field
+		
+		oldCodeblocktype := current_codeblocktype
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		current_codeblocktype := "function"
+
+		if \children[3] then {
+			children[3].makeSymbolTable()
+		}
+		children[6].makeSymbolTable()
+		current_codeblocktype := oldCodeblocktype
+	end
+	
+initially(ch)
+	self$node.initially("function", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class fldlist_node : node ()
 initially(ch)
 	self$node.initially("fldlist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class method_node : node ()
-
 	method makeSymbolTable()
 		local
 			child
@@ -1388,30 +1175,11 @@ class method_node : node ()
 		current_codeblocktype := &null
 	end
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		ucode ||:= "\n"
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("method", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class methhead_node : node ()
@@ -1453,30 +1221,12 @@ class methhead_node : node ()
 			}
 		}
 	end
-	
-	method uniconCode()
-		local
-			child
-		
-	#	write(label)
-		ucode := ""
-		every child := \!children do {
-			write(type(child))
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			ucode ||:= " "
-		}
-		ucode ||:= "\n"
-		return ucode
-	end
 
 initially(ch)
 	self$node.initially("methhead", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class arglist_node : node ()
@@ -1515,6 +1265,9 @@ class arglist_node : node ()
 initially(ch)
 	arglist := []
 	self$node.initially("arglist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class idlist_node : node ()   # loc
@@ -1526,6 +1279,7 @@ class idlist_node : node ()   # loc
 		
 		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
 		write("idlist_node: ", current_symbol_table.ident)
+		write("idlist current access:", current_access)
 		if *children < 2 then {
 			child := getNodeLabel(children[1])
 			field := Field_Ref(locate, child, current_access)
@@ -1559,14 +1313,15 @@ class idlist_node : node ()   # loc
 	end
 initially(ch)
 	self$node.initially("idlist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class parmlist_node : node ()
 	local
 		paramlist
 
-	
-		
 	method typeCheck()
 		local
 			child
@@ -1586,6 +1341,9 @@ class parmlist_node : node ()
 initially(ch)
 	paramlist := []
 	self$node.initially("parmlist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class arg_node : node ()
@@ -1650,36 +1408,21 @@ class arg_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("arg" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class locals_node : node ()
 	local
 		number
 	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 3 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(n, ch)
 	number := n
 	self$node.initially("locals" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class local_node : node ()
@@ -1699,17 +1442,17 @@ class local_node : node ()
 			child
 		
 		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
 		every child := !children do {
 			if type(child) ?? "node" then child.typeCheck()
 		}
 	end
-	
-	method uniconCode()
-		return "local"
-	end	
 initially(l, ch)
 	label := l
 	self$node.initially(label, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class static_node : node ()
@@ -1719,18 +1462,35 @@ class static_node : node ()
 		
 		current_access := label
 		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
 	end
-	
-	method typeCheck()
-		
-	end
-	
-	method uniconCode()
-		return "static"
-	end	
 initially(l, ch)
 	label := l
 	self$node.initially(label, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
+end
+
+class private_node : node ()
+	method makeSymbolTable()
+		local
+			child
+		
+		current_access := label
+		locate := location(current_package, current_object, current_method, current_invoc, current_codeblocktype)
+		every child := !children do {
+			if type(child) ?? "node" then child.typeCheck()
+		}
+	end
+initially(l, ch)
+	label := l
+	self$node.initially(label, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class methbody_node : node ()
@@ -1754,30 +1514,12 @@ class methbody_node : node ()
 			if type(child) ?? "node" then child.typeCheck()
 		}
 	end
-	
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 1 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
+
 initially(ch)
 	self$node.initially("methbody", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 # Expressions
@@ -1785,16 +1527,25 @@ end
 class expr_node : node ()
 initially(ch)
 	self$node.initially("expr", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class and_node : node ()
 initially(ch)
 	self$node.initially("and", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class swap_node : node ()
 initially(ch)
 	self$node.initially("swap", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 # redo typeCheck with scopeCheck()
@@ -1871,551 +1622,541 @@ class assign_node : node ()
 	end
 initially(ch)
 	self$node.initially("assign", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class invocAssign_node : node ()
 initially(ch)
 	self$node.initially("invocAssign", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class condAssign_node : node()
 initially(ch)
 	self$node.initially("condAssign", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bdiffa_node : node ()
 initially(ch)
 	self$node.initially("Bdiffa", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Buniona_node : node ()
 initially(ch)
 	self$node.initially("Buniona", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bplusa_node : node ()
 initially(ch)
 	self$node.initially("Bplusa", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bminusa_node : node ()
 initially(ch)
 	self$node.initially("Bminusa", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bstara_node : node ()
 initially(ch)
 	self$node.initially("Bstara", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bintera_node : node ()
 initially(ch)
 	self$node.initially("Binter", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bslasha_node : node ()
 initially(ch)
 	self$node.initially("Bslasha", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bmoda_node : node ()
 initially(ch)
 	self$node.initially("Bmoda", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bcareta_node : node ()
 initially(ch)
 	self$node.initially("Bcareta", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugeq_link_node : node ()
 initially(ch)
 	self$node.initially("Baugeq", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugge_node : node ()
 initially(ch)
 	self$node.initially("Baugge", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bauggt_node : node ()
 initially(ch)
 	self$node.initially("Bauggt", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugle_node : node ()
 initially(ch)
 	self$node.initially("Baugle", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bauglt_node : node ()
 initially(ch)
 	self$node.initially("Bauglt", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugne_node : node ()
 initially(ch)
 	self$node.initially("Baugne", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugques_node : node ()
 initially(ch)
 	self$node.initially("Baugques", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Baugamper_node : node ()
 initially(ch)
 	self$node.initially("Baugamper", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class to_node : node ()
 initially(ch)
 	self$node.initially("to", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class toby_node : node ()
 initially(ch)
 	self$node.initially("toby", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class bar_node : node ()
 initially(ch)
 	self$node.initially("|", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Beq_node : node ()
 initially(ch)
 	self$node.initially("beq", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bge_node : node ()
 initially(ch)
 	self$node.initially("Bge", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bgt_node : node ()
 initially(ch)
 	self$node.initially("Bgt", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Ble_node : node ()
 initially(ch)
 	self$node.initially("Ble", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Blt_node : node ()
 initially(ch)
 	self$node.initially("Blt", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bne_node : node ()
 initially(ch)
 	self$node.initially("Bne", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bplus_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bplus", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bdiff_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bdiff", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bunion_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bunion", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bminus_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bminus", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bstar_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bstar", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Binter_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Binter", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bslash_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bslash", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bmod_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bmod", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Bcaret_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("Bcaret", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class limit_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("limit", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class apply_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[1|3].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("apply", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
+end
+
+class uat_node : node ()
+	
+initially(ch)
+	self$node.initially("ubar", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ubar_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("ubar", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class udot_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("udot", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ubang_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("ubang", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class udiff_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("udiff", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uplus_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uplus", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ustar_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("ustar", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uslash_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uslash", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ucaret_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("ucaret", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uinter_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uinter", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class utilde_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("utilde", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uminus_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uminus", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class unumne_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("unumne", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uunion_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uunion", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class uqmark_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("uqmark", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ubackslash_node : node ()
-	method generate_first()
-		local 
-			child
-			
-		every child := !children do {
-			if type(child) ?? "node" then child.generate_first()
-		}
-		first := \children[2].first | current_symbol_table.generate_label()
-	end
+	
 initially(ch)
 	self$node.initially("ubackslash", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class section_node : node ()
 	
 initially(ch)
 	self$node.initially("section", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class return_node : node ()
 initially(ch)
 	self$node.initially("return", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class if_node : node ()
 initially(ch)
 	self$node.initially("if", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class case_node : node ()
 initially(ch)
 	self$node.initially("case", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class while_node : node ()
 initially(ch)
 	self$node.initially("while", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class until_node : node ()
 initially(ch)
 	self$node.initially("until", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class every_node : node ()
 initially(ch)
 	self$node.initially("every", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class repeat_node : node ()
 initially(ch)
 	self$node.initially("repeat", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class ident_node : node ()
@@ -2465,36 +2206,57 @@ class ident_node : node ()
 initially(ch)
 	self$node.initially("ident", ch)
 	value := children[1].string
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class next_node : node ()
 initially(ch)
 	self$node.initially("next", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Break_node : node ()
 initially(ch)
 	self$node.initially("Break", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Paren_node : node ()
 initially(ch)
 	self$node.initially("Paren", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Brace_node : node ()
 initially(ch)
 	self$node.initially("Brace", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Brack_node : node ()
 initially(ch)
 	self$node.initially("Brack", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Subscript_node : node ()
 initially(ch)
 	self$node.initially("Subscript", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Pdco_node : node ()
@@ -2504,6 +2266,9 @@ class Pdco_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("Pdco" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class invoke_node : node ()
@@ -2528,11 +2293,17 @@ class invoke_node : node ()
 	end
 initially(ch)
 	self$node.initially("invoke", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class invocationnode : node ()
 initially(ch)
 	self$node.initially("invocationnode", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 #use setCurrentTable()
@@ -2609,11 +2380,17 @@ class field_node : node ()
 	end
 initially(ch)
 	self$node.initially("field", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class keyword_node : node ()
 initially(ch)
 	self$node.initially("keyword", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class While_node : node ()
@@ -2623,6 +2400,9 @@ class While_node : node ()
 initially(n, ch)
 number := n
 	self$node.initially("While" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Until_node : node ()
@@ -2632,6 +2412,9 @@ class Until_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("until" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Every_node : node ()
@@ -2641,6 +2424,9 @@ class Every_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("every" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Repeat_node : node ()
@@ -2650,6 +2436,9 @@ class Repeat_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("repeat" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Return_node : node ()
@@ -2659,6 +2448,9 @@ class Return_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("return" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Suspend_node : node ()
@@ -2668,6 +2460,9 @@ class Suspend_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("suspend" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class If_node : node ()
@@ -2677,6 +2472,9 @@ class If_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("if" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class Case_node : node ()
@@ -2686,32 +2484,17 @@ class Case_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("case" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class caselist_node : node ()
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(n, ch)
 	self$node.initially("Caselist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class cclause_node : node ()
@@ -2721,11 +2504,17 @@ class cclause_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("cclause" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class exprlist_node : node ()
 initially(ch)
 	self$node.initially("exprlist", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class pdcolist_node : node ()
@@ -2735,6 +2524,9 @@ class pdcolist_node : node ()
 initially(n, ch)
 	number := n
 	self$node.initially("pdcolist" || number, ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class intlit_node : node ()
@@ -2748,14 +2540,12 @@ class intlit_node : node ()
 		nodeType := field.typ
 	end
 	
-	method uniconCode()
-		ucode := children[1].string
-		return ucode
-	end
-	
 initially(ch)
 	self$node.initially("intlit", ch)
 	value := integer(children[1].string)	
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class reallit_node : node ()	
@@ -2768,14 +2558,12 @@ class reallit_node : node ()
 		current_symbol_table.addField(field)
 		nodeType := field.typ
 	end
-	
-	method uniconCode()
-		ucode := children[1].string
-		return ucode
-	end
 initially(ch)
 	self$node.initially("reallit", ch)
 	value := real(children[1].string)	
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class stringlit_node : node ()
@@ -2790,14 +2578,13 @@ class stringlit_node : node ()
 		current_symbol_table.addField(field)
 		nodeType := field.typ
 	end
-	
-	method uniconCode()
-		ucode := children[1].string
-		return ucode
-	end
+
 initially(ch)
 	self$node.initially("stringlit", ch)
 	value := children[1].string	
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class csetlit_node : node ()
@@ -2810,55 +2597,44 @@ class csetlit_node : node ()
 		current_symbol_table.addField(field)
 		nodeType := field.typ
 	end
-	
-	method uniconCode()
-		ucode := children[1].string
-		return ucode
-	end
 initially(ch)
 	self$node.initially("csetlit", ch)
 	value := cset(children[1].string)	
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class colon_node : node ()
 initially(ch)
 	self$node.initially("colon", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class pcolon_node : node ()
 initially(ch)
 	self$node.initially("pcolon", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class mcolon_node : node ()
 initially(ch)
 	self$node.initially("mcolon", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class compound_node : node ()
-	method uniconCode()
-		local
-			n,
-			child
-			
-		ucode := ""
-		n := 1
-		every child := \!children do {
-			if \(type(child) ?? "node") then {
-				ucode ||:= child.uniconCode()
-			} else if \(type(child) ?? "token") then {
-				ucode ||:= child.string
-			} else {
-				ucode ||:= child
-			}	
-			if n = 2 then ucode ||:= "\n"
-			else ucode ||:= " "
-			n +:= 1
-		}
-		return ucode
-	end	
 initially(ch)
 	self$node.initially("compound", ch)
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
 end
 
 class error_node : node ()

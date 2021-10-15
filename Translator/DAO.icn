@@ -1,0 +1,109 @@
+
+package dao
+
+class DAO()
+	method getLinesFromFile(fileName)
+		local
+			infile
+			
+		inFile := open(fileName, "r")
+		if \inFile then {
+			every line := !infile do suspend line
+			close(inFile)
+		} else {
+			stop("DAO ERROR: failure to read " || fileName)
+		} 
+	end
+	
+	method getWordListFromFile(fileName)
+	# reads a file and stores the words in that file into a list called words
+	# words is returned after reading all the contents of the file
+		local
+			inFile
+		
+		inFile := open(fileName, "r")
+		if \inFile then {
+			words := []
+			every put(words, word := getWord(line:=!inFile))
+			close(inFile)
+		} else {
+			stop("DAO ERROR: failure to read " || fileName)
+		}
+		
+		return words
+	end
+	
+	method getWord(line)
+	#  suspends each word from the line it has been provided
+
+		local 
+			word, 
+			wordDef,
+			symbolDef
+				
+		symbolDef := '%{}|:;'
+		wordDef := &letters++&digits++'_*/'
+		line ? while tab(upto(wordDef++symbolDef)) do {
+			if word := tab(many(wordDef)) then {}
+			else {
+			# check to see if the current space and the following space combine
+			# to make the word  "%%"
+				if line[&pos] & line[&pos + 1] == "%" then word := move(2)
+				else word := move(1)
+			}
+			suspend word
+		}  
+	end
+	
+	method writeListToFile(fileName, thisList, fileType)
+		# writes the contents of a list to a file in a specified file type.
+
+		local
+			output
+		
+		if fileType == "standard" then {
+			outFile := open(fileName, "c")
+			every output := !thisList do write(outFile, output)
+			close(outFile)
+			write(fileName || " created.")
+		} else if fileType == "token" then {
+			fileName := fileName || ".tk"
+			outFile := open(fileName, "c")
+			every output := !thisList do write(outFile, output || "\t\t\t#" || output)
+			close(outFile)
+			write(fileName || " created.")
+		} else if fileType == "production" then {		
+			fileName := fileName || ".pr"
+			outFile := open(fileName, "c")
+			every output := !thisList do write(outFile, output.getTxt())
+			close(outFile)
+			write(fileName || " created.")
+		} else if fileType == "states" then {
+			fileName := fileName || ".st"
+			outFile := open(fileName, "c")
+			every output := !thisList do write(outFile, output.label)
+			close(outFile)
+			write(fileName || " created.")
+		} else if fileType == "errors" then {	
+			fileName := fileName || ".err"
+			outFile := open(fileName, "c")
+			every output := !thisList do write(outFile, output || "\n::: syntax error")
+			close(outFile)
+			write(fileName || " created.")
+		} else if fileType == "actions" then {	
+			fileName := fileName || ".ac"
+			outFile := open(fileName, "c")
+			every output := !thisList do {
+				write(outFile, output.name || "\n")
+				write(outFile, output.getActionTxt())
+			}	
+			close(outFile)
+			write(fileName || " created.")
+		} else {
+			write("DAO ERROR: fileType not recognized.")
+		}
+	end
+
+initially()
+
+end

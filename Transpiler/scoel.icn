@@ -72,7 +72,7 @@ procedure main(args)
 			write("got here");
 			outputfile := filename || ".icn"
 			out := open(outputfile, "w")
-			write(out, createIconFile(root))
+
 			close(out)
 		}
 	}

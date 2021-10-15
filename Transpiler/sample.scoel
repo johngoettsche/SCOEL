@@ -1,8 +1,9 @@
 	
 class A
-	method foo()
-	end
+	private
+		foo
+		
+	foo f(n) :-  2 * n
 constructor ()
 		
 end 
-

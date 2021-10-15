@@ -1,0 +1,1104 @@
+class node()
+	local	
+		label,
+		children,
+		parent,
+		value,
+		code
+		
+	method uniconCode()
+	#	write(label)
+		code := ""
+		every child := \!children do {
+	#		write(type(child))
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			code ||:= " "
+		}
+		return code
+	end
+	
+	method to_string()
+		local	
+			str
+			
+		str := label
+		if \value then str ||:= ", " || value
+		return str
+	end
+	
+initially(lab, ch)
+	local
+		child
+		
+	label := lab
+	children := ch
+	if \children then every child := !children do {
+		if \child & type(child) ~== "string" then child.parent := self
+	}
+end
+
+class program_node : node ()
+initially(ch)
+	self$node.initially("program", ch)
+end
+
+class decls_node : node ()
+initially(ch)
+	self$node.initially("decls", ch)
+end
+
+class decl_node : node ()
+initially(ch)
+	self$node.initially("decl", ch)
+end
+
+class initially_node : node ()
+	local
+		number
+		
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = number then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(n, ch)
+	number := n
+	self$node.initially("initially", ch)
+end
+
+class optsemi_node : node ()
+	method uniconCode()
+		code := ";\n"
+		return code
+	end
+initially()
+	ch := []
+	self$node.initially("optsemi", ch)
+end
+
+class class_node : node ()
+	method uniconCode()
+		code := self$node.uniconCode() || "end\n"
+		return code
+	end
+initially(ch)
+	self$node.initially("class", ch)
+end
+
+class classhead_node : node ()
+	local
+		number
+	
+	method uniconCode()
+		code := ""
+		every child := \!children do {
+			code ||:= child.string || " "
+		}
+		if number = 0 then {
+			code ||:= "()"
+		}
+		code ||:= "\n"
+		return code
+	end
+initially(n, ch)
+	number := n
+	self$node.initially("classhead", ch)
+end
+
+class supers_node : node ()
+initially(ch)
+	self$node.initially("supers", ch)
+end
+
+class packageref_node : node ()
+initially(ch)
+	self$node.initially("packageref", ch)
+end
+
+class methods_node : node ()
+initially(ch)
+	self$node.initially("methods", ch)
+end
+
+class package_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("package", ch)
+end
+
+class import_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("import", ch)
+end
+
+class link_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("link", ch)
+end
+
+class linklist_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 1 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("linklist", ch)
+end
+
+class lnkfile_node : node ()
+initially(ch)
+	self$node.initially("lnkfile", ch)
+end
+
+class global_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 1 | 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("global", ch)
+end
+
+class record_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 5 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("record", ch)
+end
+
+class invocDef_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := "method " || children[1].string || "("
+		code ||:= children[3].uniconCode() || "\nend\n"
+		return code
+	end	
+initially(ch)
+	self$node.initially("invocDef", ch)
+end
+
+class fldlist_node : node ()
+initially(ch)
+	self$node.initially("fldlist", ch)
+end
+
+class method_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		code ||:= "\n"
+		return code
+	end	
+initially(ch)
+	self$node.initially("method", ch)
+end
+
+class methhead_node : node ()
+initially(ch)
+	self$node.initially("methhead", ch)
+end
+
+class arglist_node : node ()
+initially(ch)
+	self$node.initially("arglist", ch)
+end
+
+class idlist_node : node ()
+initially(ch)
+	self$node.initially("idlist", ch)
+end
+
+class parmlist_node : node ()
+initially(ch)
+	self$node.initially("parmlist", ch)
+end
+
+class arg_node : node ()
+	local 
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("arg" || number, ch)
+end
+
+class locals_node : node ()
+	local
+		number
+	
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 3 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(n, ch)
+	number := n
+	self$node.initially("locals" || number, ch)
+end
+
+class initial_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("initial", ch)
+end
+
+class methbody_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 1 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("methbody", ch)
+end
+
+class expr_node : node ()
+initially(ch)
+	self$node.initially("expr", ch)
+end
+
+class and_node : node ()
+initially(ch)
+	self$node.initially("and", ch)
+end
+
+class swap_node : node ()
+initially(ch)
+	self$node.initially("swap", ch)
+end
+
+class assign_node : node ()
+initially(ch)
+	self$node.initially("assign", ch)
+end
+
+class revswap_node : node ()
+initially(ch)
+	self$node.initially("revswap", ch)
+end
+
+class revassign_node : node ()
+initially(ch)
+	self$node.initially("revassign", ch)
+end
+
+class augcat_node : node ()
+initially(ch)
+	self$node.initially("augcat", ch)
+end
+
+class Bdiffa_node : node ()
+initially(ch)
+	self$node.initially("Bdiffa", ch)
+end
+
+class Buniona_node : node ()
+initially(ch)
+	self$node.initially("Buniona", ch)
+end
+
+class Bplusa_node : node ()
+initially(ch)
+	self$node.initially("Bplusa", ch)
+end
+
+class Bminusa_node : node ()
+initially(ch)
+	self$node.initially("Bminusa", ch)
+end
+
+class Bstara_node : node ()
+initially(ch)
+	self$node.initially("Bstara", ch)
+end
+
+class Bintera_node : node ()
+initially(ch)
+	self$node.initially("Binter", ch)
+end
+
+class Bslasha_node : node ()
+initially(ch)
+	self$node.initially("Bslasha", ch)
+end
+
+class Bmoda_node : node ()
+initially(ch)
+	self$node.initially("Bmoda", ch)
+end
+
+class Bcareta_node : node ()
+initially(ch)
+	self$node.initially("Bcareta", ch)
+end
+
+class Baugeq_link_node : node ()
+initially(ch)
+	self$node.initially("Baugeq", ch)
+end
+
+class Baugge_node : node ()
+initially(ch)
+	self$node.initially("Baugge", ch)
+end
+
+class Bauggt_node : node ()
+initially(ch)
+	self$node.initially("Bauggt", ch)
+end
+
+class Baugle_node : node ()
+initially(ch)
+	self$node.initially("Baugle", ch)
+end
+
+class Bauglt_node : node ()
+initially(ch)
+	self$node.initially("Bauglt", ch)
+end
+
+class Baugne_node : node ()
+initially(ch)
+	self$node.initially("Baugne", ch)
+end
+
+class Baugques_node : node ()
+initially(ch)
+	self$node.initially("Baugques", ch)
+end
+
+class Baugamper_node : node ()
+initially(ch)
+	self$node.initially("Baugamper", ch)
+end
+
+class Baugact_node : node ()
+initially(ch)
+	self$node.initially("Baugact", ch)
+end
+
+class to_node : node ()
+initially(ch)
+	self$node.initially("to", ch)
+end
+
+class toby_node : node ()
+initially(ch)
+	self$node.initially("toby", ch)
+end
+
+class bar_node : node ()
+initially(ch)
+	self$node.initially(BAR, ch)
+end
+
+class beq_node : node ()
+initially(ch)
+	self$node.initially("beq", ch)
+end
+
+class Bge_node : node ()
+initially(ch)
+	self$node.initially("Bge", ch)
+end
+
+class Bgt_node : node ()
+initially(ch)
+	self$node.initially("Bgt", ch)
+end
+
+class Ble_node : node ()
+initially(ch)
+	self$node.initially("Ble", ch)
+end
+
+class Blt_node : node ()
+initially(ch)
+	self$node.initially("Blt", ch)
+end
+
+class Bne_node : node ()
+initially(ch)
+	self$node.initially("Bne", ch)
+end
+
+class Bcat_node : node ()
+initially(ch)
+	self$node.initially("Bcat", ch)
+end
+
+class Bplus_node : node ()
+initially(ch)
+	self$node.initially("Bplus", ch)
+end
+
+class Bdiff_node : node ()
+initially(ch)
+	self$node.initially("Bdiff", ch)
+end
+
+class Bunion_node : node ()
+initially(ch)
+	self$node.initially("Bunion", ch)
+end
+
+class Bminus_node : node ()
+initially(ch)
+	self$node.initially("Bminus", ch)
+end
+
+class Bstar_node : node ()
+initially(ch)
+	self$node.initially("Bstar", ch)
+end
+
+class Binter_node : node ()
+initially(ch)
+	self$node.initially("Binter", ch)
+end
+
+class Bslash_node : node ()
+initially(ch)
+	self$node.initially("Bslash", ch)
+end
+
+class Bmod_node : node ()
+initially(ch)
+	self$node.initially("Bmod", ch)
+end
+
+class Bcaret_node : node ()
+initially(ch)
+	self$node.initially("Bcaret", ch)
+end
+
+class limit_node : node ()
+initially(ch)
+	self$node.initially("limit", ch)
+end
+
+class at_node : node ()
+initially(ch)
+	self$node.initially("at", ch)
+end
+
+class apply_node : node ()
+initially(ch)
+	self$node.initially("apply", ch)
+end
+
+class uat_node : node ()
+initially(ch)
+	self$node.initially("uat", ch)
+end
+
+class unot_node : node ()
+initially(ch)
+	self$node.initially("unot", ch)
+end
+
+class ubar_node : node ()
+initially(ch)
+	self$node.initially("ubar", ch)
+end
+
+class uconcat_node : node ()
+initially(ch)
+	self$node.initially("uconcat", ch)
+end
+
+class udot_node : node ()
+initially(ch)
+	self$node.initially("udot", ch)
+end
+
+class ubang_node : node ()
+initially(ch)
+	self$node.initially("ubang", ch)
+end
+
+class udiff_node : node ()
+initially(ch)
+	self$node.initially("udiff", ch)
+end
+
+class uplus_node : node ()
+initially(ch)
+	self$node.initially("uplus", ch)
+end
+
+class ustar_node : node ()
+initially(ch)
+	self$node.initially("ustar", ch)
+end
+
+class uslash_node : node ()
+initially(ch)
+	self$node.initially("uslash", ch)
+end
+
+class ucaret_node : node ()
+initially(ch)
+	self$node.initially("ucaret", ch)
+end
+
+class uinter_node : node ()
+initially(ch)
+	self$node.initially("uinter", ch)
+end
+
+class utilde_node : node ()
+initially(ch)
+	self$node.initially("utilde", ch)
+end
+
+class uminus_node : node ()
+initially(ch)
+	self$node.initially("uminus", ch)
+end
+
+class unumeq_node : node ()
+initially(ch)
+	self$node.initially("unumeq", ch)
+end
+
+class unumne_node : node ()
+initially(ch)
+	self$node.initially("unumne", ch)
+end
+
+class uunion_node : node ()
+initially(ch)
+	self$node.initially("uunion", ch)
+end
+
+class uqmark_node : node ()
+initially(ch)
+	self$node.initially("uqmark", ch)
+end
+
+class ubackslash_node : node ()
+initially(ch)
+	self$node.initially("ubackslash", ch)
+end
+
+class section_node : node ()
+initially(ch)
+	self$node.initially("section", ch)
+end
+
+class return_node : node ()
+initially(ch)
+	self$node.initially("return", ch)
+end
+
+class if_node : node ()
+initially(ch)
+	self$node.initially("if", ch)
+end
+
+class case_node : node ()
+initially(ch)
+	self$node.initially("case", ch)
+end
+
+class while_node : node ()
+initially(ch)
+	self$node.initially("while", ch)
+end
+
+class until_node : node ()
+initially(ch)
+	self$node.initially("until", ch)
+end
+
+class every_node : node ()
+initially(ch)
+	self$node.initially("every", ch)
+end
+
+class repeat_node : node ()
+initially(ch)
+	self$node.initially("repeat", ch)
+end
+
+class create_node : node ()
+initially(ch)
+	self$node.initially("create", ch)
+end
+
+class ident_node : node ()
+initially(ch)
+	self$node.initially("ident", ch)
+	value := children[1].string
+	checkIdentifierReference(value)
+end
+
+class next_node : node ()
+initially(ch)
+	self$node.initially("next", ch)
+end
+
+class Break_node : node ()
+initially(ch)
+	self$node.initially("Break", ch)
+end
+
+class Paren_node : node ()
+initially(ch)
+	self$node.initially("Paren", ch)
+end
+
+class Brace_node : node ()
+initially(ch)
+	self$node.initially("Brace", ch)
+end
+
+class Brack_node : node ()
+initially(ch)
+	self$node.initially("Brack", ch)
+end
+
+class Subscript_node : node ()
+initially(ch)
+	self$node.initially("Subscript", ch)
+end
+
+class Pdco_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("Pdco" || number, ch)
+end
+
+class invoke_node : node ()
+initially(ch)
+	self$node.initially("invoke", ch)
+end
+
+class invocationnode : node ()
+initially(ch)
+	self$node.initially("invocationnode", ch)
+end
+
+class field_node : node ()
+initially(ch)
+	self$node.initially("field", ch)
+end
+
+class keyword_node : node ()
+initially(ch)
+	self$node.initially("keyword", ch)
+end
+
+class While_node : node ()
+	local
+		number
+
+initially(n, ch)
+number := n
+	self$node.initially("While" || number, ch)
+end
+
+class Until_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("until" || number, ch)
+end
+
+class Every_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("every" || number, ch)
+end
+
+class Repeat_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("repeat" || number, ch)
+end
+
+class Return_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("return" || number, ch)
+end
+
+class Suspend_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("suspend" || number, ch)
+end
+
+class If_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("if" || number, ch)
+end
+
+class Case_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("case" || number, ch)
+end
+
+class Caselist_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(n, ch)
+	self$node.initially("Caselist", ch)
+end
+
+class cclause_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("cclause" || number, ch)
+end
+
+class exprlist_node : node ()
+initially(ch)
+	self$node.initially("exprlist", ch)
+end
+
+class elst_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("elst" || number, ch)
+end
+
+class pdcolist_node : node ()
+	local
+		number
+
+initially(n, ch)
+	number := n
+	self$node.initially("pdcolist" || number, ch)
+end
+
+class intlit_node : node ()
+	method uniconCode()
+		code := children[1].string
+		return code
+	end
+initially(ch)
+	self$node.initially("intlit", ch)
+	value := integer(children[1].string)	
+end
+
+class reallit_node : node ()
+	method uniconCode()
+		code := children[1].string
+		return code
+	end
+initially(ch)
+	self$node.initially("reallit", ch)
+	value := real(children[1].string)	
+end
+
+class stringlit_node : node ()
+	method uniconCode()
+		code := children[1].string
+		return code
+	end
+initially(ch)
+	self$node.initially("stringlit", ch)
+	value := children[1].string	
+end
+
+class csetlit_node : node ()
+	method uniconCode()
+		code := children[1].string
+		return code
+	end
+initially(ch)
+	self$node.initially("csetlit", ch)
+	value := cset(children[1].string)	
+end
+
+class colon_node : node ()
+initially(ch)
+	self$node.initially("colon", ch)
+end
+
+class pcolon_node : node ()
+initially(ch)
+	self$node.initially("pcolon", ch)
+end
+
+class mcolon_node : node ()
+initially(ch)
+	self$node.initially("mcolon", ch)
+end
+
+class compound_node : node ()
+	method uniconCode()
+		local
+			n 
+			
+		code := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				code ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				code ||:= child.string
+			} else {
+				code ||:= child
+			}	
+			if n = 2 then code ||:= "\n"
+			else code ||:= " "
+			n +:= 1
+		}
+		return code
+	end	
+initially(ch)
+	self$node.initially("compound", ch)
+end
+
+class error_node : node ()
+initially
+	
+end

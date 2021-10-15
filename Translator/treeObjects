@@ -1,0 +1,68 @@
+
+package treeObjects
+
+# Abstract node definition
+class Node(type, label, parent, children)
+	children := []
+	abstract method offspring()
+	abstract method code()
+initially()
+	
+end
+
+# Leaf and Treenode definitions
+class Leaf : Node(token)
+	method offspring()
+	
+	end
+	
+	method code()
+		# Each Leaf will generate its particular code from its token
+	end
+	
+initially()
+
+end
+
+class Treenode : Node()
+	method offspring()
+		every child := !children do child.parent := self
+	end
+	
+	method code()
+		# Each Treenode will generate its particular code from itself and its children
+	end
+	
+initially()
+
+end
+
+# Specific Leaf definitions
+class _N_StandardLeaf : Leaf()
+	method code()
+		return token.str
+	end
+	
+initially(t)
+	token := t
+	type := "Leaf"
+	label := token.str
+	children := &null
+end
+
+# Specific Treenode definitions
+class _N_StandardTreenode : Treenode()
+	local code
+	method code()
+		every child := !children do code ||:= child.code()
+		return code
+	end
+	
+initially(l, c)
+	type := "Treenode"
+	label := l
+	children := c
+	offspring()
+end
+
+

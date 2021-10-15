@@ -1,0 +1,3 @@
+	iyacc -i scoelgram.y
+
+	

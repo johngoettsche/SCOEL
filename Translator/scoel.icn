@@ -1,0 +1,39 @@
+global uniconTrans
+global files
+
+procedure main(args)
+	local
+		root,
+		
+	uniconTrans := 0
+	files := []
+	write(image(args))
+	every arg := !args do {
+		if arg == "-U" then {
+			uniconTrans := 1
+		} else {
+			put(files, arg)
+		}
+	}
+
+	tokens := []
+	
+	every file := !files do {
+		yyfilename := file
+		yyin := open(yyfilename, "r")
+		yylex_reinit()
+		yyparse()
+		root := valstk[1]
+		printParseTable(root, 0)
+		if uniconTrans > 0 then write(createUniconFile(root))
+
+	}
+end
+
+procedure createUniconFile(root)
+	local
+		str
+		
+	str := root.uniconCode()
+	return str
+end
