@@ -497,6 +497,10 @@ invocDef : IDENT INVASSIGN query {
 		children := [$1,":-",$3]
 		$$ := ruleDef_node(children)
 	}
+	| IDENT INVASSIGN patternList {
+		children := [$1, $2]
+		$$ := patternDef_node(children)
+	}
 	| IDENT function {
 		children := [$1, $2]
 		$$ := functionDef_node(children)
@@ -517,9 +521,18 @@ query : LPAREN arglist RPAREN semiOptional LBRACE exprlist RBRACE {
 		children := ["(", $2, ")", ";", "{", $6, "}"]
 		$$ := query_node(children)
 	}
-	| LPAREN arglist RPAREN semiOptional IDENT LPAREN exprlist RPAREN {
+	| LPAREN arglist RPAREN semiOptional IDENT LBRACE exprlist RBRACE {
 		children := ["(", $2, ")", ";", $5, "(", $7, ")"]
 		$$ := query_node(children)
+	}
+	;
+
+patternList : {
+		$$ := EmptyNode
+	}
+	patternList expr : {
+		children := [$1]
+		$$ := patternLst_node(children)
 	}
 	;
 	
@@ -527,6 +540,7 @@ function : FUNK LPAREN fldlist RPAREN INVASSIGN expr {
 		children := ["f", "(", $3, ")", ":-", $6]
 		$$ := function_node(children)
 	}
+	;
 
 fldlist : { 
 		$$ := EmptyNode 

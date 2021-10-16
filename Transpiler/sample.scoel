@@ -1,8 +1,10 @@
 	
 class A
-	method foo()
-	end
+	private
+		foo
+
+	foo f() :- &success
 constructor ()
-		
+	
 end 
 
