@@ -155,13 +155,9 @@ $define SNDBK 350
 $define RCV 351
 $define RCVBK 352
 $define CONST 353
-$define TOPIC 354
-$define FUNC 355
-$define CONASSIGN 356
-$define STORE 357
 
+$define STORE 357
 $define AT 358
-$define CREATE 359
 
 global yylineno, yycolno, yyfilename
 
@@ -221,10 +217,7 @@ initial {
    t["until"] := [0, UNTIL]
    t["while"] := [Beginner, WHILE]
    t["const"] := [0, CONST]
-   t["topic"] := [0, TOPIC]
-   t["f"] := [0, FUNC]
    t["store"] := [0, STORE]
-   t['create'] := [Beginner, CREATE]
 }
    return t
 end
@@ -442,7 +435,6 @@ procedure do_at()
        tokflags +:= Beginner + Ender
        return RCV
        }
-    return AT
 end
 
 procedure do_qmark()

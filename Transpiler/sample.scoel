@@ -1,14 +1,4 @@
 	
 class A
-	private
-		foo
-<<<<<<< HEAD
-		
-	foo f(n) :-  2 * n
-=======
-
-	foo f() :- &success
->>>>>>> d1e059e1213d8ba4489905e47239e4fcbcf19ba7
-constructor ()
-	
+constructor()	
 end 

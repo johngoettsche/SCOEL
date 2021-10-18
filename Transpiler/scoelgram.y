@@ -321,10 +321,6 @@ decl	: record {
 		children := [$1]
 		$$ := methods_node(children) 
 	}
-	| fact { 
-		children := [$1]
-		$$ := methods_node(children) 
-	}
 	;
 
 constructor: { 
@@ -444,7 +440,7 @@ lnkfile	: IDENT {
 	}
 	;
 
-global	: GLOBAL idlist { 
+global	: GLOBAL staticOption idlist { 
 		children := [$1,$2]
 		$$ := global_node(children) 
 	} 
@@ -452,7 +448,7 @@ global	: GLOBAL idlist {
 		children := [$1,$2]
 		$$ := const_node(children) 
 	} 
-	| TOPIC idlist { 
+	| PRIVATE staticOption idlist { 
 		children := [$1,$2]
 		$$ := topic_node(children) 
 	} 
@@ -491,37 +487,27 @@ storeFlag : {
 
 invocDef : IDENT INVASSIGN query {
 		children := [$1,":-",$3]
-		$$ := ruleDef_node(children)
+		$$ := queryDef_node(children)
 	}
-	IDENT INVASSIGN fact {
-		children := [$1,":-",$3]
-		$$ := ruleDef_node(children)
+	| IDENT INVASSIGN IDENT LPAREN exprlist RPAREN { 
+		children := [$1,":-",$3, "(", $5, ")"]
+		$$ := fact_node(children)
 	}
-	| IDENT INVASSIGN patternList {
-		children := [$1, $2]
-		$$ := patternDef_node(children)
-	}
-	| IDENT function {
+	| IDENT INVASSIGN LBRACK expr RBRACK {
 		children := [$1, $2]
 		$$ := functionDef_node(children)
 	}
-	| IDENT INVASSIGN LBRACE exprlist RBRACE {
+	| IDENT INVASSIGN patternList semiOptional {
 		children := [$1, ":-", "{", $4, "}"]
 		$$ := patternDef_node(children)
 	}
 	;
-
-fact : IDENT LPAREN exprlist RPAREN semiOptional {
-		children := [$1,$2,$3,$4]
-		$$ := fact_node(children)
-	}
-	;
 	
-query : LPAREN arglist RPAREN semiOptional LBRACE exprlist RBRACE {
+query : LPAREN arglist RPAREN LBRACE exprlist RBRACE {
 		children := ["(", $2, ")", ";", "{", $6, "}"]
 		$$ := query_node(children)
 	}
-	| LPAREN arglist RPAREN semiOptional IDENT LBRACE exprlist RBRACE {
+	| LPAREN arglist RPAREN IDENT LBRACE exprlist RBRACE {
 		children := ["(", $2, ")", ";", $5, "(", $7, ")"]
 		$$ := query_node(children)
 	}
@@ -530,15 +516,9 @@ query : LPAREN arglist RPAREN semiOptional LBRACE exprlist RBRACE {
 patternList : {
 		$$ := EmptyNode
 	}
-	patternList expr : {
-		children := [$1]
-		$$ := patternLst_node(children)
-	}
-	;
-	
-function : FUNK LPAREN fldlist RPAREN INVASSIGN expr {
-		children := ["f", "(", $3, ")", ":-", $6]
-		$$ := function_node(children)
+	| patternList expr : {
+		children := [$1, $2]
+		$$ := patternList_node(children)
 	}
 	;
 
@@ -562,7 +542,7 @@ meth	: ABSTRACT methhead {
 	;
 
 methhead: METHOD IDENT LPAREN arglist RPAREN {
-		children := [$1,$2,$3,$4,$5]
+		children := [$1,$2,"(",$4,")"]
 		$$ := methhead_node(children)
 	} 
 	;
