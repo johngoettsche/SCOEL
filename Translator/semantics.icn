@@ -1,0 +1,18 @@
+record identifier(text, scope, identType)
+global variableTable
+
+procedure semantics_iniy()
+	variableTable := table();
+	#bottomUpTraverse()
+end
+
+procedure bottomUpTraverse(tnode)
+	every child := \!tnode.children do bottomUpTraverse(child)
+	evaluateNode(tnode)
+end
+
+procedure checkIdentifierReference(ident)
+	
+end
+
+

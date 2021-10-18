@@ -1,0 +1,132 @@
+
+package grammarGeneration
+
+import DAO
+import Objects
+import productionRules
+
+class GrammarGenerator(dao, objects, productionRules)
+	
+	method createNonTerminals(fileName, arguments, rawGrammar)  
+	#  from the rawGrammar it creates the NonTerminals and
+	#  procedes the createTerminals procedure
+
+		#create nonTerminals
+		local 
+			nonTerminal, 
+			nonTerminalWordList, 
+			nonTerminalCheckSet,
+			nonTerminalList,
+			outfile,
+			outfileName
+	   
+		nonTerminalCheckSet := set()
+		write("Creating Non-Terminals...\n")
+		thisFileName := fileName || ".nt"
+		nonTerminalWordList := dao.getWordListFromFile(thisFileName)
+		nonTerminalList := []
+		every put(nonTerminalList, makeNonTerminalSet(nonTerminalWordList))
+		every insert(nonTerminalCheckSet, !nonTerminalWordList)
+		createTerminals(fileName, arguments, rawGrammar, nonTerminalCheckSet, nonTerminalList)
+	end
+	
+	method getNonTerminals(fileName)
+		thisFileName := fileName || ".nt"
+		thisFile := open(thisFileName, "r")
+		words := []
+		every put(words, word := getWord(line:=!thisFile))
+		close(thisFile)
+		
+		return words
+	end
+	
+	method createTerminals(fileName, arguments, rawGrammar, nonTerminalCheckSet, nonTerminalList)
+	#  from the rawGrammar, nonTerminalCheckSet and nonTerminalSet it
+	#  produces the terminals and procedes to the creaeGrammar procedure
+
+		#create terminals
+		local 
+			terminalList, 
+			terminalsSet, 
+			terminalCheckSet, 
+			terminal,
+			outfile,
+			outfileName,
+			terminalsWordList
+		  
+		write("Creating Terminals...\n")
+		
+		terminalCheckSet := set()
+		thisFileName := fileName || ".t"
+		terminalWordList := DAO::getWordListFromFile(thisFileName)
+		terminalList := []
+		every put(terminalList, makeTerminalList(fileName, terminalWordList))
+		every insert(terminalCheckSet, !terminalWordList)
+		
+		productionRules::createProductionRules(
+				fileName,
+				arguments,
+				rawGrammar, 
+				nonTerminalCheckSet, 
+				nonTerminalList,
+				terminalCheckSet, 
+				terminalList)
+	end
+	
+	method makeNonTerminalSet(nonTerminalWordList)
+	#  creates and suspends each NonTerminal in the nonTerminalWords
+	# in the order they appear in the grammar
+		local 
+			x, 
+			token, 
+			thisNonTerminal
+		
+		every token := !nonTerminalWordList do {
+			thisNonTerminal := Objects::NonTerminal()
+			thisNonTerminal.token := token
+			suspend thisNonTerminal
+		}
+	end
+	
+	method makeTerminalList(fileName, terminalList)
+	# creates and susends each Terminal in the terminalsList
+		local 
+			token, 
+			thisTerminal,
+			pattern,
+			thisPattern
+		
+		tokenFileName := fileName || ".tk"
+		every token := !terminalList do {
+			thisTerminal := Objects::Terminal("terminal")
+			thisTerminal.token := token
+			tokenfile := open(tokenFileName, "r") | stop("ERROR: trouble reading " || fileN)
+			pattern := getPattern(tokenfile, token)
+			close(tokenfile)
+			thisTerminal.pattern := pattern
+		  suspend thisTerminal
+		}
+	end
+	
+	method getPattern(tkfile, token)
+		pattern := "#"
+		wordDef := &letters++&digits++'_*/%{}|:;+-$#@!&()[]<>,.~`'	
+		every line := !tkfile do {
+			line ? while tab(upto(wordDef)) do {
+				tokenString := tab(many(wordDef))
+				tab(upto(wordDef))
+				thisPattern := tab(many(wordDef))
+				if *thisPattern < 1 then thisPattern := "#"
+				if tokenString == token then {
+					pattern := thisPattern
+				}
+			}
+		}
+		return pattern
+	end
+	
+initially()
+	dao := DAO()
+	objects := []
+	productionRules := []
+end

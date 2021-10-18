@@ -1,0 +1,27 @@
+$include "scoellex.icn"
+
+global tokens
+
+procedure main(args)
+
+# need to update to process .sal files and multiple files
+
+	tokens := []
+	x := 1
+
+	yyfilename := args[x]
+	yyin := open(yyfilename, "r")
+	yylex_reinit()
+
+# perform lexical analysis
+
+	while \buffer do {
+		output := yylex()
+#		write(output, ": ", yytext, ", ", yylineno, ", ", yycolno, ", ", yyfilename)
+		put(tokens, token(output, yytext, yylineno, yycolno, yyfilename))
+	}
+	every token := !tokens do write("token: ", token.tok, ", ", token.str, ", [line: ", token.line, ", column: ", token.column, ", file: ", token.filename, "]")
+	
+# parcer
+ 
+end

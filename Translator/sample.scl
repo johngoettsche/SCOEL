@@ -1,0 +1,22 @@
+package sample
+
+class Main
+	static
+		foo
+
+	foo :- {
+		test([2,foo,4]) 
+		test([5,foo,bar])
+	}
+	
+	method bar()
+		return foo
+	end
+		
+initially	
+	local	
+		help;
+	
+	x := 2
+	write(foo)
+end

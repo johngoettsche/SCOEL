@@ -67,16 +67,10 @@ class SymbolTable()
 		symTable,
 		scope,
 		count
-	#	labels,
-	#	constants,
-	#	globals,
-	#	immidiate,
-	#	locals,
-	#	objects
 		
 	method createSymbolTable(id, sc)
 		id ||:= "_Table"
-	#	write("making symbol table: ", id, " in ", ident, " scope: ", sc, " depth: ", depth)
+		write("making symbol table: ", id, " in ", ident, " scope: ", sc, " depth: ", depth)
 		symTable[id] := SymbolTable(id, self, sc, depth + 1)
 	#	write(self.to_string())
 	end
@@ -439,31 +433,6 @@ procedure scopeCheck(currentLocation, referenceLocation, referenceLabel, assignm
 		yyerror2(611, "Scope Error", &null, token)
 	}
 end
-
-# needs to be revised
-#procedure getLiteralValue(node)
-#	return node.firstPass()
-#end
-
-#procedure makeLabel(loc, ident)
-#	local
-#		match,
-#		str
-		
-#	str := ""
-#	if \loc.filename then str ||:= "__" || loc.filename
-#	match := 0
-#	if \loc.objectname then {
-#		str ||:= "__" || loc.objectname
-#		if ident == loc.objectname then match := 1
-#	}
-#	if \loc.methodname then {
-#		str ||:= "__" || loc.methodname
-#		if ident == loc.methodname then match := 1
-#	}
-#	if match = 0 then str ||:= "__" || ident
-#	return str
-#end		generate_super_Field
 
 procedure printParseTable(tnode, depth)
 	local

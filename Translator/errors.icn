@@ -1,0 +1,101 @@
+#package errors
+
+class Error_Object()
+	local
+		state,
+		lineno,
+		colno,
+		filename,
+		message,
+		text
+		
+	method to_string()
+		write("Error_Object:to_string: ", state)
+		str := message || " " || state || ", "
+		str ||:= generate_error(state) || "\n"
+		if state < 1100 & state > 0 then {
+			str ||:= "on line number " || lineno + 1
+			str ||:= " column " || colno 
+			str ||:= " in file: " || filename || "\n"
+			str ||:= "offending item: \"" || text || "\""
+		}
+		str ||:= "\n"
+		return str
+	end
+initially(st, msg)
+	state := st
+	lineno := yylineno
+	colno := yycolno
+	filename := yyfilename
+	message := msg
+	text := yytext
+end
+
+global errors
+
+procedure init_errors()
+	errors := []
+end
+
+procedure lex_error()
+	put(errors, Error_Object(1000, "lexical error"))
+end
+
+procedure uni_error(s)
+   /errors := 0
+   /s := "uni_error"
+#   put(errors, Error_Object(statestk, s))
+   yyerror(s)
+   errors +:= 1
+end
+
+procedure write_errors()
+	every error := !errors do iwrite(&errout, error.to_string())
+end
+
+procedure generate_error(err)
+	static t
+	local
+		errorMessage
+		
+	initial {
+		t := table()
+		
+		t[0] := "nothing to compile..."
+		t[3] := "package identifier error"
+		t[10] := "package identifier must follow \"package\""
+		t[48] := "the method section in classes can only contain \nmethod, record and invocable assignment definitions."
+		t[59] := "variable lists must start with a variable name"
+		t[69] := "found it"
+		t[78] := "be included in variable lists must include variables"
+		t[148] := "only expressions are allowed in the initially section"
+		
+		
+		t[1000] := "token not recognized"
+		t[1100] := "stack underflow error, aborting..."
+	}
+	return t[err]
+end
+
+procedure compiler_error(code, msg)
+	local
+		error
+		
+	error := Error_Object(code, msg)
+	put(errors, error)
+	write(&errout, error.to_string())
+end
+
+procedure yyerror(s)
+	local
+		error
+		
+	error := Error_Object(\statestk[1], s)
+	if \error then {
+		put(errors, error)
+		write(&errout, error.to_string())
+	} else {
+		write("failed to create Error_Object")
+	}
+	
+end

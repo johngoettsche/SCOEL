@@ -18,7 +18,7 @@ class Error_Object()
 		str := message || " " || state || ", "
 		str ||:= generate_error(state) || "\n"
 		if state < 1100 & state > 0 then {
-			if lineno then {
+			if \lineno then {
 				str ||:= "on line number " || lineno + 1
 				str ||:= " column " || colno 
 			}
