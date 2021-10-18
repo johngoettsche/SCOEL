@@ -266,6 +266,36 @@ class constructor_node : node ()
 	#	params := children[3].arglist
 		nodeType := ConstructorType(params)
 	end
+<<<<<<< HEAD
+=======
+	
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				if child.string == "constructor" then {
+					ucode ||:= "initially"
+				} else {
+					ucode ||:= child.string
+				}
+			} else {
+				ucode ||:= child
+			}	
+			if n = number then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		ucode ||:= "\n"
+		return ucode
+	end	
+>>>>>>> d1e059e1213d8ba4489905e47239e4fcbcf19ba7
 initially(n, ch)
 	number := n
 	self$node.initially("constructor", ch)
@@ -306,6 +336,105 @@ class class_node : node ()
 	#	params := children[1].arglist ||| children[2].localsList
 		nodeType := ClassType(params)
 	end
+<<<<<<< HEAD
+=======
+
+	method uniconCode()
+		ucode := self$node.uniconCode() || "\n"
+		return ucode
+	end
+	
+	method iconCode()
+		local
+			vars,
+			meths,
+			item,
+			count,
+			meth,
+			met,
+			className
+		
+		current_symbol_table := setCurrentTable()
+		if \locate.packagename then write("class:iconCode: ",locate.packagename);
+		if \locate.objectname then write("class:iconCode: ",locate.objectname);
+		if \locate.methodname then write("class:iconCode: ",locate.methodname);
+		write("class:iconCode:symbolTable: ",current_symbol_table.ident)
+		if \locate.objectname then className := locate.objectname
+		else {
+			className := getNodeLabel(children[1].children[3])
+			locate.objectname := className
+		}
+	#	current_symbol_table := setCurrentTable()
+	#write("-------------------------------");
+	#write(current_symbol_table.to_string());
+	#write("-------------------------------");
+		vars := []
+		meths := []
+		every item := key(current_symbol_table.symTable) do {
+			write("class:iconCode: ", image(item));
+			if type(item) ?? "Table" then {
+				put(meths, item.ident[0:-6]);
+			} else {
+				put(vars, item);
+			}
+		}
+		icode := "# " || className || "class generation #\n"
+		icode ||:= "record " || className || "__class(__self"
+		every item := !meths do {
+			icode ||:= ", " || item
+		}
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n\n"
+		
+		icode ||:= "record " || className || "__methods("
+		count := 0
+		every meth := !meths do {
+			if type(current_symbol_table[meth]) == "table" then{
+				if count > 0 then icode ||:= ", "
+				icode ||:= meth
+			} 
+		}
+		icode ||:= ")\n\n"
+		icode ||:= "global " || className || "__constructor\n\n"
+		
+		icode ||:= "procedure __" || className || "("
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n"
+		icode ||:= "local self, clone\n"
+		icode ||:= "initial {\n"
+		icode ||:= "if /" || className || "__constructor then " || className || "initialize()\n"
+		icode ||:= "}\n"
+		icode ||:= "self := " || className || "__class(&null, " || className || "__constructor,"
+		every item := !vars do {
+			icode ||:= ", " || item
+		}
+		icode ||:= ")\n"
+		icode ||:= "self.__self := self\n"
+		icode ||:= "return self\n"
+		icode ||:= "end\n\n"
+				
+		every meth := !meths do {
+			if meth ?? "constructor" then {
+				icode ||:= "procedure " || className || "initialize()\n"
+				icode ||:= "initial " || className || "__constructor := " || className || "__methods("
+				count := 0
+				every met := !meths do {
+					if not(met ?? "constructor") then {
+						if count > 0 then icode ||:= ", "
+						icode := met 
+					}
+				}
+			}
+		}
+		
+		#icode ||:= self$node.iconCode() || "\n"
+		return icode
+	end
+>>>>>>> d1e059e1213d8ba4489905e47239e4fcbcf19ba7
 initially(ch)
 	self$node.initially("class", ch)
 	if \children then every child := !children do {
@@ -360,6 +489,37 @@ class classhead_node : node ()
 		}
 	end
 	
+<<<<<<< HEAD
+=======
+	method uniconCode() #classhead
+		local
+			child
+		
+		ucode := ""
+		every \(child := !children) do {
+			if type(child) ?? "token" then{
+				if child.string == "store" then {
+					# set up storage list
+				} else if child.string == "abtract" | "class" then {
+					ucode ||:= child.string || " "
+				}
+			} else if type(child) == "string" then {
+				ucode ||:= child || " "
+			} else {
+				ucode ||:= child.uniconCode() || " "
+			}
+		}
+		if *children = 4 then ucode ||:= "()"
+		if \children[1] then {
+			if getNodeLabel(children[1]) == "store" & getNodeLabel(children[3]) == "Main" then {
+				yyerror2(600, "Main Class Error", current_package, &null)
+			}
+		}
+		
+		ucode ||:= "\n"
+		return ucode
+	end
+>>>>>>> d1e059e1213d8ba4489905e47239e4fcbcf19ba7
 initially(ch)
 	self$node.initially("classhead", ch)
 	if \children then every child := !children do {
@@ -677,6 +837,34 @@ class const_node : node ()
 		
 	end
 	
+<<<<<<< HEAD
+=======
+	method uniconCode()
+		local
+			n,
+			child
+			
+		ucode := ""
+		n := 1
+		every child := \!children do {
+			if \(type(child) ?? "node") then {
+				ucode ||:= child.uniconCode()
+			} else if \(type(child) ?? "token") then {
+				if child.string == "const" then{
+					ucode ||:= "global"
+				} else {
+					ucode ||:= child.string
+				}
+			} else {
+				ucode ||:= child
+			}	
+			if n = 1 | 2 then ucode ||:= "\n"
+			else ucode ||:= " "
+			n +:= 1
+		}
+		return ucode
+	end	
+>>>>>>> d1e059e1213d8ba4489905e47239e4fcbcf19ba7
 initially(ch)
 	self$node.initially("const", ch)
 	if \children then every child := !children do {
