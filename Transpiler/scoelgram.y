@@ -301,7 +301,7 @@ decl	: record {
 		children := [$1]
 		$$ := decl_node(children)
 	}
-	| global {	
+	| varDecl {	
 		children := [$1]
 		$$ := decl_node(children)
 	}
@@ -323,20 +323,59 @@ decl	: record {
 	}
 	;
 
+varDecl	: { 
+		$$ := EmptyNode
+	}
+	| varDecl retentions idlist semiOptional { 
+		children := [$1,$2,$3,";"]
+		$$ := varDecl_node(2, children)
+	} 
+	;
+
+retentions : GLOBAL staticOption idlist { 
+		children := [$1,$2]
+		$$ := global_node(children) 
+	} 
+	| CONST constlist { 
+		children := [$1,$2]
+		$$ := const_node(children) 
+	} 
+	| PRIVATE staticOption idlist { 
+		children := [$1,$2]
+		$$ := private_node(children) 
+	} 
+	| PUBLIC staticOption { 
+		children := [$1, $2]
+		$$ := public_node(children[1].string, children)
+	} 
+	| READ staticOption { 
+		children := [$1, $2]
+		$$ := read_node(children[1].string, children)
+	} 
+	;
+	
+staticOption : {
+	$$ := EmptyNode
+	}
+	| STATIC { 
+		children := [$1]
+		$$ := static_node(children[1].string, children)
+	}
+
 constructor: { 
 		$$ := EmptyNode 
 	}
-	| CONSTRUCTOR locals methbody {
+	| CONSTRUCTOR varDecl methbody {
 		children := [$1, $2, $3]
 		$$ := constructor_node(2, children)
 	}
-	| CONSTRUCTOR LPAREN arglist RPAREN locals methbody {
+	| CONSTRUCTOR LPAREN arglist RPAREN varDecl methbody {
 		children := [$1, $2, $3, $4, $5, $6]
 		$$ := constructor_node(4, children)
 	}
 	;
 
-classdef : classhead locals methods constructor END {
+classdef : classhead varDecl methods constructor END {
 		children := [$1, $2, $3, $4, $5]
 		$$ := class_node(children)
 	}
@@ -382,7 +421,7 @@ methods: {
 		children := [$1,$2]
 		$$ := methods_node(children) 
 	}
-	| locals SEMICOL methods { 
+	| varDecl SEMICOL methods { 
 		children := [$1,$2,$3]
 		$$ := methods_node(children) 
 	}
@@ -391,10 +430,6 @@ methods: {
 		$$ := methods_node(children) 
 	}
 	| invocDef methods { 
-		children := [$1,$2]
-		$$ := methods_node(children) 
-	}
-	| fact methods { 
 		children := [$1,$2]
 		$$ := methods_node(children) 
 	}
@@ -438,20 +473,6 @@ lnkfile	: IDENT {
 		children := [$1]
 		$$ := lnkfile_node(children)
 	}
-	;
-
-global	: GLOBAL staticOption idlist { 
-		children := [$1,$2]
-		$$ := global_node(children) 
-	} 
-	| CONST constlist { 
-		children := [$1,$2]
-		$$ := const_node(children) 
-	} 
-	| PRIVATE staticOption idlist { 
-		children := [$1,$2]
-		$$ := topic_node(children) 
-	} 
 	;
 
 constlist : constdef {
@@ -535,7 +556,7 @@ meth	: ABSTRACT methhead {
 		children := [$1,$2]
 		$$ := method_node(children)
 	} 
-	| methhead locals methbody END {
+	| methhead varDecl methbody END {
 		children := [$1,$2,$3,$4]
 		$$ := method_node(children)
 	} 
@@ -597,38 +618,6 @@ arg	: IDENT {
 		$$ := arg_node(4, children) 
 	} 
 	;
-	
-locals	: { 
-		$$ := EmptyNode
-	}
-	| locals retentions idlist semiOptional { 
-		children := [$1,$2,$3,";"]
-		$$ := locals_node(2, children)
-	} 
-	;
-
-retentions: PRIVATE staticOption { 
-		children := [$1, $2]
-		$$ := local_node(children[1].string, children)
-	} 
-	| PUBLIC staticOption { 
-		children := [$1, $2]
-		$$ := local_node(children[1].string, children)
-	} 
-
-	| READ staticOption { 
-		children := [$1, $2]
-		$$ := local_node(children[1].string, children)
-	} 
-	;
-	
-staticOption : {
-	$$ := EmptyNode
-	}
-	| STATIC { 
-		children := [$1]
-		$$ := static_node(children[1].string, children)
-	}
 
 methbody: { 
 		$$ := EmptyNode 
@@ -648,14 +637,14 @@ nexpr	: {
 	}
 	;
 
-expr	: expr1
+expr : expr1
 	| expr AND expr1	{ 
 		children := [$1,$2,$3]
 		$$ := and_node(children) 
 	} 
 	;
 
-expr1	: expr2 
+expr1 : expr2 
 	| expr2 ASSIGN expr1    { 
 		children := [$1,$2,$3]
 		$$ := assign_node(children)
@@ -734,7 +723,7 @@ expr1	: expr2
 	}
 	;
 
-expr2	: expr3
+expr2 : expr3
 	| expr2 TO expr3 { 
 		children := [$1,$2,$3]
 		$$ := to_node("to", children)
@@ -745,14 +734,14 @@ expr2	: expr3
 	}
 	;
 
-expr3	: expr4 
+expr3 : expr4 
 	| expr4 BAR expr3 {
 		children := [$1,$2,$3]
 		$$ := bar_node(children)
 	} 
 	;
 
-expr4	: expr5 
+expr4 : expr5 
 	| expr4 EQ expr5 { 
 		children := [$1,$2,$3]
 		$$ := Beq_node(children)
@@ -779,7 +768,7 @@ expr4	: expr5
 	} 
 	;
 
-expr5	: expr7 
+expr5 : expr7 
 	| expr5 PLUS expr7 { 
 		children := [$1,$2,$3]
 		$$ := Bplus_node(children)
@@ -798,7 +787,7 @@ expr5	: expr7
 	} 
 	;
 
-expr7	: expr8
+expr7 : expr8
 	| expr7 STAR expr8 { 
 		children := [$1,$2,$3]
 		$$ := Bstar_node(children)
@@ -817,14 +806,14 @@ expr7	: expr8
 	} 
 	;
 
-expr8	: expr9
+expr8 : expr9
 	| expr9 CARET expr8 { 
 		children := [$1,$2,$3]
 		$$ := Bcaret_node(children)
 	} 
 	;
 
-expr9	: expr10
+expr9 : expr10
 	| expr9 BACKSLASH expr10 { 
 		children := [$1,$2,$3]
 		$$ := limit_node(children)
@@ -835,7 +824,7 @@ expr9	: expr10
 	}
 	;
 
-expr10	: expr11
+expr10 : expr11
 	| AT expr10 { 
 		children := [$1,$2]
 		$$ := uat_node(children)
@@ -902,7 +891,7 @@ expr10	: expr11
 	} 
 	;
 
-expr11	: literal 
+expr11 : literal 
 	| section {
 		children := [$1]
 		$$ := section_node(children)
@@ -983,12 +972,10 @@ expr11	: literal
 		children := [$1,$2,$3]
 		$$ := field_node(children)
 	}
-	
 	| expr11 DOT packageref { 
 		children := [$1,$2,$3]
 		$$ := field_node(children)
 	}
-	
 	| packageref {
 		children := [$1]
 		$$ := packageref_node(children)
@@ -997,9 +984,6 @@ expr11	: literal
 		children := [$1,$2,$3]
 		$$ := field_node(children)
 	}
-	
-	
-	
 	| AND FAIL { 
 		children := [$1,$2]
 		$$ := keyword_node(children)
@@ -1061,7 +1045,7 @@ return	: FAIL
 	}
 	;
 
-if	: IF expr THEN expr { 
+if : IF expr THEN expr { 
 		children := [$1,$2,$3,$4]
 		$$ := If_node(0, children)
 	}
@@ -1071,7 +1055,7 @@ if	: IF expr THEN expr {
 	} 
 	;
 
-case	: CASE expr OF LBRACE caselist RBRACE { 
+case : CASE expr OF LBRACE caselist RBRACE { 
 		children := [$1,$2,$3,$4,$5,$6]
 		$$ := Case_node(0, children)
 	} 
